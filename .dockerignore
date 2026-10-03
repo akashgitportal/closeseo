@@ -1,0 +1,8 @@
+node_modules
+/data
+tests
+docs
+.env
+.env.local
+*.db
+*.db-*

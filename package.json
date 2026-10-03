@@ -1,0 +1,34 @@
+{
+  "name": "closeseo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hostable SEO toolkit (keyword research, rank tracking, site audits, backlinks, reports) with an MCP server for AI agents.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "fake:dfs": "node tests/support/fake-dataforseo-cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 tests/*.test.ts",
+    "test:diff": "node tests/diff/run.ts",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.test.ts",
+    "test:all": "npm run typecheck && npm test && npm run test:e2e"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "hono": "^4.6.14",
+    "htmlparser2": "^10.0.0",
+    "tldts": "^7.4.16",
+    "undici": "^7.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.3"
+  }
+}

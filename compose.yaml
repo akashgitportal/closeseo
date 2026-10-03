@@ -1,0 +1,14 @@
+services:
+  closeseo:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      DATABASE_PATH: /data/closeseo.db
+    ports:
+      - "127.0.0.1:${PORT:-3001}:${PORT:-3001}"
+    volumes:
+      - closeseo_data:/data
+volumes:
+  closeseo_data:
