@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
 
 /**
- * Deterministic stand-in for the DataForSEO v3 API, used by both closeseo's tests
+ * Deterministic stand-in for the DataForSEO v3 API, used by both CloseSEO's tests
  * and the SOURCE-vs-NEW differential runs. Same request -> same response.
  *
  * Control endpoints (no auth):

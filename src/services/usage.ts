@@ -6,7 +6,7 @@ import { AppError } from "../errors.ts";
 /**
  * Spend ledger and monthly budgets.
  *
- * closeseo has no payment processing: the owner pays DataForSEO and OpenRouter directly. What it can do is
+ * CloseSEO has no payment processing: the owner pays DataForSEO and OpenRouter directly. What it can do is
  * record every billed call, attribute it to a project and a feature, and refuse new paid calls once a
  * monthly cap is reached. A call that is already in flight is not interrupted, so a cap can be exceeded by
  * the calls that were started together (at most one prompt-explorer fan-out of four models).

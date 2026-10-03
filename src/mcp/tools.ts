@@ -42,7 +42,7 @@ const UNSUPPORTED_REASON: Record<string, string> = {
 };
 const unsupported = (kind: keyof typeof UNSUPPORTED_REASON): Handler => {
   const h: Handler & { unsupported?: true } = () => {
-    throw new AppError("NOT_CONFIGURED", `${UNSUPPORTED_REASON[kind]} is not available in this release of closeseo.`);
+    throw new AppError("NOT_CONFIGURED", `${UNSUPPORTED_REASON[kind]} is not available in this release of CloseSEO.`);
   };
   h.unsupported = true;
   return h;
@@ -53,7 +53,7 @@ export const HANDLERS: Record<string, Handler> = {
   ...ga4Handlers,
   whoami: (ctx) => ({
     data: { userEmail: "admin@localhost", scopes: [], mode: "self-hosted", creditsRemaining: null },
-    text: `Signed in as ${ctx.config.authMode === "local_noauth" ? "admin@localhost (no login required)" : "the API-key user"}.\nThis is a self-hosted closeseo server; there are no token scopes.`,
+    text: `Signed in as ${ctx.config.authMode === "local_noauth" ? "admin@localhost (no login required)" : "the API-key user"}.\nThis is a self-hosted CloseSEO server; there are no token scopes.`,
   }),
 
   list_projects: (ctx, _a, env) => {
@@ -65,7 +65,7 @@ export const HANDLERS: Record<string, Handler> = {
     };
   },
   create_project: (ctx, a, env) => {
-    if (a.organizationId !== undefined) throw new AppError("VALIDATION_ERROR", "organizationId cannot be used here: closeseo has a single owner and no organisations");
+    if (a.organizationId !== undefined) throw new AppError("VALIDATION_ERROR", "organizationId cannot be used here: CloseSEO has a single owner and no organisations");
     const p = createProject(ctx, a as never);
     const url = projectUrl(env, p.id);
     return { data: { project: { ...p, url } }, url, text: `Project "${p.name}" created with id ${p.id} (site: ${p.domain ?? "none"}, market ${p.locationCode}/${p.languageCode}).` };

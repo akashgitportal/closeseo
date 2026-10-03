@@ -16,10 +16,10 @@ const proj = async (s: Side, tag: string, extra: Record<string, unknown> = {}) =
   if (r.isError) throw new Error(`create_project failed on ${s.name}: ${r.text}`);
   return (r.data as any).project.id as string;
 };
-/** Wording is deliberately not compared: closeseo words its messages independently. Success/failure and structured data are. */
+/** Wording is deliberately not compared: CloseSEO words its messages independently. Success/failure and structured data are. */
 const out = (r: Result) => ({ isError: r.isError, data: r.data });
 const dataOnly = (r: Result) => ({ isError: r.isError, data: r.data });
-/** Only compare success/failure (validation wording is closeseo's own). */
+/** Only compare success/failure (validation wording is CloseSEO's own). */
 const verdict = (r: Result) => ({ isError: r.isError });
 /** Order-insensitive view of saved-keyword rows (the SOURCE does not define an order among rows saved together). */
 const sortedRows = (v: any) => (v?.data?.rows ? { ...v, data: { ...v.data, rows: [...v.data.rows].sort((a: any, b: any) => (a.keyword < b.keyword ? -1 : 1)) } } : v);

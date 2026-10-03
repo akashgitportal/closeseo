@@ -18,8 +18,8 @@ addFormats.default(ajv);
 const validators = new Map(SCHEMAS.tools.map((t) => [t.name, ajv.compile(t.inputSchema)]));
 
 export const SERVER_INFO = {
-  name: "closeseo MCP",
-  title: "closeseo",
+  name: "CloseSEO MCP",
+  title: "CloseSEO",
   version: "0.1.0",
   description: "SEO research tools for AI agents: keyword research and metrics, SERP results, domain and backlink analysis, rank tracking, site audits and shareable reports.",
 };
@@ -79,7 +79,7 @@ export async function handleRpc(ctx: Ctx, baseUrl: string, msg: Rpc, clientLabel
           protocolVersion: asked && SUPPORTED_VERSIONS.has(asked) ? asked : PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: SERVER_INFO,
-          instructions: "closeseo SEO tools. Paid DataForSEO-backed tools spend your DataForSEO balance; confirm with the user before large or repeated runs. Start with list_projects.",
+          instructions: "CloseSEO SEO tools. Paid DataForSEO-backed tools spend your DataForSEO balance; confirm with the user before large or repeated runs. Start with list_projects.",
         },
       };
     }

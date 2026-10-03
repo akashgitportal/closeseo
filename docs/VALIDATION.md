@@ -87,7 +87,7 @@ load/performance beyond the 1,000-row and 25-writer cases; Windows/macOS.
 ## Live DataForSEO (after a second account, funded with $1, started answering data calls)
 **Spend: about $0.34 of the $1.00 balance (balance $1.00 → $0.657, read from the account), including a few direct API probes. The test runners stopped at a hard limit.
 
-What ran for real, through closeseo's own tools, and parsed correctly:
+What ran for real, through CloseSEO's own tools, and parsed correctly:
 | Tool | Real result |
 |---|---|
 | `search_serp_locations` | 62,864 US locations from the free endpoint, filtered and cached |
@@ -100,7 +100,7 @@ What ran for real, through closeseo's own tools, and parsed correctly:
 
 What the live run found, and what changed because of it:
 * **DataForSEO sometimes answers paid calls with "unusual activity … temporarily paused access" (task code 40201)**, mostly after bursts, and the
-  pause eases after roughly 30 seconds. A refused call costs nothing. closeseo now retries it with backoff (4 attempts, 3 s, 6 s, 12 s) and, if the
+  pause eases after roughly 30 seconds. A refused call costs nothing. CloseSEO now retries it with backoff (4 attempts, 3 s, 6 s, 12 s) and, if the
   pause persists, shows DataForSEO's own message with their support address. Covered by tests with a fake that pauses on demand.
 * **A multi-call tool wasted a paid result.** The backlinks overview was billed for its summary and then failed entirely when a later call was
   paused. It now keeps the summary and returns what it could get with a note saying exactly what is missing (seen live: trend history omitted,

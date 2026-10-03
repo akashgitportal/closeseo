@@ -1,4 +1,4 @@
-// closeseo web UI. No build step. All dynamic content is inserted via textContent / DOM nodes (never innerHTML).
+// CloseSEO web UI. No build step. All dynamic content is inserted via textContent / DOM nodes (never innerHTML).
 const $app = document.getElementById("app");
 
 // ---------- helpers ----------
@@ -323,7 +323,7 @@ function markdown(src) {
 async function assistantTab(p) {
   const base = `/api/projects/${encodeURIComponent(p.id)}/agent`;
   const info = await api(`${base}/sessions`);
-  if (!info.enabled) return h("div", { class: "card" }, h("h2", {}, "The assistant is off"), h("p", {}, "Set OPENROUTER_API_KEY and restart closeseo to chat with an SEO assistant that uses this project's data and memory."), h("p", { class: "muted" }, "It spends your OpenRouter credit, plus DataForSEO balance for paid lookups. Each message has a hard spending cap."));
+  if (!info.enabled) return h("div", { class: "card" }, h("h2", {}, "The assistant is off"), h("p", {}, "Set OPENROUTER_API_KEY and restart CloseSEO to chat with an SEO assistant that uses this project's data and memory."), h("p", { class: "muted" }, "It spends your OpenRouter credit, plus DataForSEO balance for paid lookups. Each message has a hard spending cap."));
   let sessionId = sessionStorageGet(p.id) && info.sessions.some((x) => x.id === sessionStorageGet(p.id)) ? sessionStorageGet(p.id) : info.sessions[0]?.id ?? null;
   const log = h("div", { class: "chat" }), meta = h("div", { class: "muted" }), box = h("div", {});
   const input = h("textarea", { id: "chat-input", placeholder: "Ask about keywords, competitors, rankings, your site…", rows: "3" });
@@ -550,7 +550,7 @@ async function usageTab(p) {
       p ? null : h("div", { class: "card" }, h("h2", { style: "margin-top:0" }, "By project"), u.byProject.length ? table([{ label: "Project", render: (x) => (x.projectId ? h("a", { href: `#/p/${x.projectId}/usage` }, x.name) : x.name) }, { label: "Spent", render: (x) => usd(x.usd), num: 1 }], u.byProject) : h("div", { class: "muted" }, "Nothing spent yet."))),
     u.daily.length ? h("div", { class: "card" }, h("h2", { style: "margin-top:0" }, "By day"), h("div", { class: "spark" }, u.daily.map((d) => h("div", { class: "col", title: `${d.day}: ${usd(d.usd)}` }, h("i", { style: `height:${maxDay ? Math.max(3, (d.usd / maxDay) * 100) : 3}%` }), h("span", {}, d.day.slice(8)))))) : null,
     h("h2", {}, "Latest billed calls"), table([{ label: "Time (UTC)", render: (x) => x.at.slice(0, 19).replace("T", " ") }, { label: "Provider", key: "provider" }, { label: "Feature", render: (x) => x.feature.replaceAll("_", " ") }, { label: "Endpoint", key: "endpoint" }, { label: "Cost", render: (x) => usd(x.usd), num: 1 }], u.recent, "No billed calls yet."),
-    h("p", { class: "muted" }, "closeseo has no payments of its own. This is your own spend with DataForSEO and OpenRouter, as reported by them on each call."));
+    h("p", { class: "muted" }, "CloseSEO has no payments of its own. This is your own spend with DataForSEO and OpenRouter, as reported by them on each call."));
   return h("div", {}, holder);
 }
 async function usageView() {

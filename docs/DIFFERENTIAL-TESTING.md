@@ -1,6 +1,6 @@
 # Differential testing (SOURCE vs NEW)
 
-`npm run test:diff` sends identical call sequences to the original open-seo (the *oracle*) and to closeseo, both
+`npm run test:diff` sends identical call sequences to the original open-seo (the *oracle*) and to CloseSEO, both
 backed by the same deterministic fake DataForSEO server, normalises ids/timestamps/origins, and diffs the results.
 Output: `tests/diff/out/report.json` (+ `source-full.json`, `new-full.json`).
 
@@ -16,7 +16,7 @@ pnpm run db:migrate:local
 pnpm exec vite dev --port 3002 --host 127.0.0.1
 ```
 
-Then in closeseo: `ORACLE_URL=http://127.0.0.1:3002 npm run test:diff` (starts the fake on :4010 if it is not already running;
+Then in CloseSEO: `ORACLE_URL=http://127.0.0.1:3002 npm run test:diff` (starts the fake on :4010 if it is not already running;
 NEW is booted with `CREDIT_MARKUP=1.28` because the oracle applies its hosted markup to estimates even when self-hosted).
 
 ## Status values
@@ -26,4 +26,4 @@ NEW is booted with `CREDIT_MARKUP=1.28` because the oracle applies its hosted ma
 
 
 ## Note for the independent-rewrite branch
-Message wording is now closeseo's own, so the harness no longer compares error or summary text, nor the prose fields `message` and `scopeNote`. It still compares success/failure and every structured value, so functional parity is unchanged: 215 of 217 checks identical, 1 known branding difference, 1 not testable.
+Message wording is now CloseSEO's own, so the harness no longer compares error or summary text, nor the prose fields `message` and `scopeNote`. It still compares success/failure and every structured value, so functional parity is unchanged: 215 of 217 checks identical, 1 known branding difference, 1 not testable.

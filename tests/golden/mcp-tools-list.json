@@ -3,7 +3,7 @@
     {
       "name": "whoami",
       "title": "Check connection",
-      "description": "Reports which closeseo account and mode the client is connected as, plus the token scopes and the credit balance (the balance is null on a self-hosted server). Free: no DataForSEO call is made. Use it to confirm the connection works.",
+      "description": "Reports which CloseSEO account and mode the client is connected as, plus the token scopes and the credit balance (the balance is null on a self-hosted server). Free: no DataForSEO call is made. Use it to confirm the connection works.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -198,7 +198,7 @@
             "type": "string"
           },
           "organizationId": {
-            "description": "Not supported by closeseo, which has a single owner and no organizations. Leave it out; sending it is rejected.",
+            "description": "Not supported by CloseSEO, which has a single owner and no organizations. Leave it out; sending it is rejected.",
             "type": "string",
             "minLength": 1
           }
@@ -285,7 +285,7 @@
     {
       "name": "get_project_context",
       "title": "Read project memory",
-      "description": "Returns what closeseo remembers about the project: the business overview, goal, positioning and writing style, any custom sections, the competitor and key-page lists and the latest research-log entries. Free. Load it before SEO work so you start from what the user has already said, and scan the research log so you do not pay twice for the same question. A section reported as missing is a prompt to ask the user and store the answer with update_project_context.",
+      "description": "Returns what CloseSEO remembers about the project: the business overview, goal, positioning and writing style, any custom sections, the competitor and key-page lists and the latest research-log entries. Free. Load it before SEO work so you start from what the user has already said, and scan the research log so you do not pay twice for the same question. A section reported as missing is a prompt to ask the user and store the answer with update_project_context.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -742,7 +742,7 @@
     {
       "name": "list_saved_keywords",
       "title": "Browse saved keywords",
-      "description": "Returns the project's saved keywords with the metrics stored with them (volume, difficulty, CPC) and their tags. Free: it reads closeseo's own database, not DataForSEO. Every row carries the ID that remove_saved_keywords needs. To fetch one segment, filter by tag; several tags match a keyword that has any of them.",
+      "description": "Returns the project's saved keywords with the metrics stored with them (volume, difficulty, CPC) and their tags. Free: it reads CloseSEO's own database, not DataForSEO. Every row carries the ID that remove_saved_keywords needs. To fetch one segment, filter by tag; several tags match a keyword that has any of them.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2042,7 +2042,7 @@
     {
       "name": "get_serp_results",
       "title": "Live Google results",
-      "description": "Fetches live Google organic results for 1 to 10 keywords, so you can see who ranks for a query, check competitors, compare result pages or collect source URLs before planning content. Returns the first `depth` rows for each keyword (default 20). Paid per keyword, and the price grows with depth. Nothing is stored in closeseo. A keyword that fails is reported separately and the rest still return.",
+      "description": "Fetches live Google organic results for 1 to 10 keywords, so you can see who ranks for a query, check competitors, compare result pages or collect source URLs before planning content. Returns the first `depth` rows for each keyword (default 20). Paid per keyword, and the price grows with depth. Nothing is stored in CloseSEO. A keyword that fails is reported separately and the rest still return.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5152,7 +5152,7 @@
     {
       "name": "get_google_analytics_organic_landing_pages",
       "title": "Analytics: organic landing pages",
-      "description": "Reads, from the project's connected GA4 property, how organic-search landing pages perform: sessions, engagement, key events, transactions and revenue. The default period is the last 28 complete days of the property. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
+      "description": "Reads, from the project's connected GA4 property, how organic-search landing pages perform: sessions, engagement, key events, transactions and revenue. The default period is the last 28 complete days of the property. Only the GA4 property already connected to a CloseSEO project is read, using the Google account saved with that connection. Read-only and free of CloseSEO credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5514,7 +5514,7 @@
     {
       "name": "get_google_analytics_key_events",
       "title": "Analytics: key events",
-      "description": "Reads the active GA4 key events with their counts and users, broken down by event or by organic landing page; the event breakdown can be compared with the previous period. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
+      "description": "Reads the active GA4 key events with their counts and users, broken down by event or by organic landing page; the event breakdown can be compared with the previous period. Only the GA4 property already connected to a CloseSEO project is read, using the Google account saved with that connection. Read-only and free of CloseSEO credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5709,7 +5709,7 @@
     {
       "name": "get_search_opportunities",
       "title": "Search opportunities",
-      "description": "Joins Search Console pages that rank between positions 4 and 20 with how those pages perform as GA4 organic landing pages, then ranks each match by demand, business value and how reachable the gain is. Pages without a match are still listed, unscored. Both the Search Console and GA4 properties must already be linked to the project, and the Google accounts stored in those links are used. Read-only and free of closeseo credits.",
+      "description": "Joins Search Console pages that rank between positions 4 and 20 with how those pages perform as GA4 organic landing pages, then ranks each match by demand, business value and how reachable the gain is. Pages without a match are still listed, unscored. Both the Search Console and GA4 properties must already be linked to the project, and the Google accounts stored in those links are used. Read-only and free of CloseSEO credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5860,7 +5860,7 @@
     {
       "name": "get_google_analytics_organic_overview",
       "title": "Analytics: organic overview",
-      "description": "Answers whether organic traffic is getting better: headline sessions, users, engagement, key events, transactions and revenue, compared with an equally long previous period, plus a daily or weekly trend. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
+      "description": "Answers whether organic traffic is getting better: headline sessions, users, engagement, key events, transactions and revenue, compared with an equally long previous period, plus a daily or weekly trend. Only the GA4 property already connected to a CloseSEO project is read, using the Google account saved with that connection. Read-only and free of CloseSEO credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6029,7 +6029,7 @@
     {
       "name": "get_google_analytics_traffic_acquisition",
       "title": "Analytics: traffic acquisition",
-      "description": "Compares how sessions arrive, by channel group, source/medium or campaign, with sessions, users, engagement, key events, transactions and revenue. The previous-period comparison exists for channel groups; source/medium also reports diagnostics on how well traffic is attributed. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
+      "description": "Compares how sessions arrive, by channel group, source/medium or campaign, with sessions, users, engagement, key events, transactions and revenue. The previous-period comparison exists for channel groups; source/medium also reports diagnostics on how well traffic is attributed. Only the GA4 property already connected to a CloseSEO project is read, using the Google account saved with that connection. Read-only and free of CloseSEO credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6709,7 +6709,7 @@
     {
       "name": "get_google_analytics_audience_breakdown",
       "title": "Analytics: audience breakdown",
-      "description": "Reads users, sessions, engagement and key events by device, by country or by new versus returning visitors; device and new-versus-returning can be compared with the previous period. There are no demographic or user-level dimensions. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
+      "description": "Reads users, sessions, engagement and key events by device, by country or by new versus returning visitors; device and new-versus-returning can be compared with the previous period. There are no demographic or user-level dimensions. Only the GA4 property already connected to a CloseSEO project is read, using the Google account saved with that connection. Read-only and free of CloseSEO credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6928,7 +6928,7 @@
             "maximum": 10000
           },
           "renderJavaScript": {
-            "description": "Not supported by closeseo: audits fetch pages without running JavaScript, and a request with this set to true is rejected. Leave it false (the default).",
+            "description": "Not supported by CloseSEO: audits fetch pages without running JavaScript, and a request with this set to true is rejected. Leave it false (the default).",
             "type": "boolean"
           },
           "runLighthouse": {
@@ -7113,7 +7113,7 @@
     {
       "name": "get_audit_status",
       "title": "Site audit progress",
-      "description": "Shows how far an audit has got (phase, pages crawled, Lighthouse progress). Free: it reads closeseo's own records, and an audit whose crawl died is marked failed. Without an auditId the newest audit is used.",
+      "description": "Shows how far an audit has got (phase, pages crawled, Lighthouse progress). Free: it reads CloseSEO's own records, and an audit whose crawl died is marked failed. Without an auditId the newest audit is used.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7177,7 +7177,7 @@
     {
       "name": "get_audit_issues",
       "title": "Site audit issue report",
-      "description": "Returns the issue report of a finished audit, most important first. Each issue comes with a how_to_fix describing concrete steps. Free: it reads closeseo's own records. Without an auditId the newest audit is used.",
+      "description": "Returns the issue report of a finished audit, most important first. Each issue comes with a how_to_fix describing concrete steps. Free: it reads CloseSEO's own records. Without an auditId the newest audit is used.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7272,7 +7272,7 @@
     {
       "name": "get_audit_pages",
       "title": "Site audit page list",
-      "description": "Returns the pages an audit crawled with their on-page data: status, title, description, word count, whether they can be indexed, depth in the site and link counts. Free; closeseo's own records are read. Without an auditId the newest audit is used.",
+      "description": "Returns the pages an audit crawled with their on-page data: status, title, description, word count, whether they can be indexed, depth in the site and link counts. Free; CloseSEO's own records are read. Without an auditId the newest audit is used.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7647,7 +7647,7 @@
     {
       "name": "set_report_sharing",
       "title": "Change report sharing",
-      "description": "Switches public sharing of one saved report on or off. Free. Reports begin private, so enable sharing only on an explicit request from the user, whether in the conversation or in the skill's instructions. Whoever holds shareUrl can read the newest saved version with no account. Public sharing exists in closeseo only when the operator has switched it on. Sending true a second time leaves the link unchanged; false revokes it, and turning it on again produces a different link. The reply carries the app url and shareUrl (null once revoked). Use get_report to read an existing link without touching access.",
+      "description": "Switches public sharing of one saved report on or off. Free. Reports begin private, so enable sharing only on an explicit request from the user, whether in the conversation or in the skill's instructions. Whoever holds shareUrl can read the newest saved version with no account. Public sharing exists in CloseSEO only when the operator has switched it on. Sending true a second time leaves the link unchanged; false revokes it, and turning it on again produces a different link. The reply carries the app url and shareUrl (null once revoked). Use get_report to read an existing link without touching access.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",

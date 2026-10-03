@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
 
 /**
- * Deterministic stand-in for the Google endpoints closeseo uses. Every API host is mounted under "/<host>/..." so one
+ * Deterministic stand-in for the Google endpoints CloseSEO uses. Every API host is mounted under "/<host>/..." so one
  * origin serves all of them (GOOGLE_API_ORIGIN). OAuth verifies PKCE (S256), the client secret and the redirect URI.
  * Control: POST /__control {revokeRefresh|accessTtl|ga4Mode|gscMode|sites|properties|email|inspectFail}; GET /__stats.
  */

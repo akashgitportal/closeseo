@@ -93,7 +93,7 @@ test("shared links work without auth even in api_key mode (that is their purpose
 test("static UI: served with security headers; path traversal is blocked", async () => {
   const c = makeClient(makeCtx());
   const idx = await c.get("/");
-  assert.equal(idx.status, 200); assert.match(await idx.text(), /<title>closeseo<\/title>/);
+  assert.equal(idx.status, 200); assert.match(await idx.text(), /<title>CloseSEO<\/title>/);
   assert.equal(idx.headers.get("x-content-type-options"), "nosniff");
   assert.match(idx.headers.get("content-security-policy")!, /frame-ancestors 'self'/);
   assert.equal((await c.get("/app.js")).headers.get("content-type"), "text/javascript; charset=utf-8");

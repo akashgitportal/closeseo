@@ -30,7 +30,7 @@ export async function chatCompletion(
   try {
     res = await fetch(`${ctx.config.openrouterBaseUrl}/chat/completions`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Title": "closeseo" },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Title": "CloseSEO" },
       body: JSON.stringify({
         model: ctx.config.openrouterModel, messages: req.messages, usage: { include: true }, max_tokens: req.maxTokens ?? 1800,
         ...(req.tools?.length ? { tools: req.tools, tool_choice: req.toolChoice ?? "auto" } : {}),

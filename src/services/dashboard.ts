@@ -6,8 +6,8 @@ import { getRankTracker } from "./rankTracking.ts";
 import { getBudget, monthStart } from "./usage.ts";
 
 /**
- * Project dashboard. Everything here is read from closeseo's own database, so opening it never costs money
- * (the original refreshes a backlink snapshot from the provider on view; closeseo leaves that to the Backlinks tab).
+ * Project dashboard. Everything here is read from CloseSEO's own database, so opening it never costs money
+ * (the original refreshes a backlink snapshot from the provider on view; CloseSEO leaves that to the Backlinks tab).
  */
 
 export const STEPS = ["domain", "keywords", "competitors", "rankings", "audit", "ai", "gsc", "ga4", "budget"] as const;

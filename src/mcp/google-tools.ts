@@ -14,7 +14,7 @@ type Args = Record<string, any>;
 type Handler = (ctx: Ctx, a: Args, env: ToolEnv) => Promise<ToolResult>;
 
 const page = (env: ToolEnv, id: string, path: string) => `${env.baseUrl}/p/${id}${path}`;
-const SETUP_DOCS = "docs/GOOGLE.md in the closeseo repository";
+const SETUP_DOCS = "docs/GOOGLE.md in the CloseSEO repository";
 
 // ---------------------------------------------------------------- Search Console
 const gscFailure = (env: ToolEnv, projectId: string, error: unknown): ToolResult => {
@@ -30,7 +30,7 @@ const gscFailure = (env: ToolEnv, projectId: string, error: unknown): ToolResult
 
 const notConfigured = (env: ToolEnv, projectId: string): ToolResult => ({
   data: { ok: false, connected: false, reason: "gsc_oauth_not_configured", setupDocsUrl: SETUP_DOCS },
-  text: `This closeseo server is not configured for Search Console yet. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and CLOSESEO_SECRET (32+ characters), then connect Search Console from the project's Integrations page. Setup: ${SETUP_DOCS}`,
+  text: `This CloseSEO server is not configured for Search Console yet. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and CLOSESEO_SECRET (32+ characters), then connect Search Console from the project's Integrations page. Setup: ${SETUP_DOCS}`,
   url: page(env, projectId, ""),
 });
 

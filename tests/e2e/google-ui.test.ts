@@ -30,7 +30,7 @@ test("full Google flow in a real browser: connect Search Console, pick a propert
   await page.locator("nav.tabs a", { hasText: "Integrations" }).click();
   await page.waitForSelector("h2:has-text('Google Search Console')");
   assert.equal(await page.locator('button:has-text("Connect a Google account")').count(), 2);
-  await page.locator('button:has-text("Connect a Google account")').first().click();      // -> fake consent -> back to closeseo
+  await page.locator('button:has-text("Connect a Google account")').first().click();      // -> fake consent -> back to CloseSEO
   await page.waitForSelector("text=Google account connected");
   assert.match(page.url(), /#\/p\/[0-9a-f-]+\/integrations$/);
   assert.ok(!page.url().includes("google=connected"), "the one-shot flash parameters are removed from the address bar");

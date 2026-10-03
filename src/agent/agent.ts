@@ -23,7 +23,7 @@ export function buildSystemPrompt(ctx: Ctx, projectId: string): string {
   ].filter(Boolean).join("\n\n");
   const intake = !c.sections.some((s) => s.key === "business_overview");
   return [
-    `You are the closeseo assistant: an SEO analyst built into the closeseo app and assigned to a single project. Today's date is ${new Date().toISOString().slice(0, 10)}.`,
+    `You are the CloseSEO assistant: an SEO analyst built into the CloseSEO app and assigned to a single project. Today's date is ${new Date().toISOString().slice(0, 10)}.`,
     `Project: "${p.name}" (${p.domain ?? "no website set"}), default market ${p.locationCode}/${p.languageCode}. Every tool is already bound to this project, so do not ask for a project id or include one.`,
     "Write like a colleague in a chat window: short, direct, answer first, then a few bullets or a compact table. Skip pleasantries and emoji.",
     "Evidence rule: never quote a search volume, difficulty score, rank, traffic estimate, backlink count or any other figure unless a tool returned it earlier in this conversation. When a tool gives nothing back or errors, say that plainly and tell the user what could fix it (a missing provider key, a Google account that needs reconnecting, and so on).",
@@ -101,7 +101,7 @@ function loadHistory(ctx: Ctx, sessionId: string): ChatMessage[] {
  * Nothing is stored unless the whole turn succeeds, so a provider failure leaves the chat exactly as it was.
  */
 export async function runTurn(ctx: Ctx, baseUrl: string, projectId: string, sessionId: string, userText: string): Promise<TurnResult> {
-  if (!ctx.config.openrouterKey) throw new AppError("NOT_CONFIGURED", "The assistant cannot run without OPENROUTER_API_KEY. Set it and restart closeseo.");
+  if (!ctx.config.openrouterKey) throw new AppError("NOT_CONFIGURED", "The assistant cannot run without OPENROUTER_API_KEY. Set it and restart CloseSEO.");
   const text = userText.trim();
   if (!text) throw new AppError("VALIDATION_ERROR", "The message is blank");
   if (text.length > MAX_USER_CHARS) throw new AppError("VALIDATION_ERROR", `The message is ${text.length} characters long, over the ${MAX_USER_CHARS} limit.`);

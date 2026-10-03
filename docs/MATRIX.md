@@ -1,14 +1,14 @@
-# Feature compatibility matrix — closeseo vs every-app/open-seo v0.1.10
+# Feature compatibility matrix — CloseSEO vs every-app/open-seo v0.1.10
 
 Status legend: **PASS** implemented and verified (evidence in the last column) · **PARTIAL** implemented with stated gaps ·
 **NOT IMPLEMENTED** not in this release (deliberate scope cut, see below) · **N/A** not applicable to a self-hosted Node build.
 
-"Differential" = an identical call sequence was sent to the running SOURCE and to closeseo against the same fake DataForSEO
+"Differential" = an identical call sequence was sent to the running SOURCE and to CloseSEO against the same fake DataForSEO
 server and the normalised results were compared (`docs/DIFFERENTIAL-TESTING.md`). Most rows were validated only
 against a fake that follows DataForSEO's documented envelope. A later live run (see VALIDATION.md) confirmed the keyword, SERP, domain,
 backlink and rank-tracking calls against the real API.
 
-| ID | SOURCE capability | closeseo | Status | Validation |
+| ID | SOURCE capability | CloseSEO | Status | Validation |
 |----|------------------|----------|--------|-----------|
 | F01 | Projects: create/list/update/delete, default market, domain normalisation, project scoping of every operation | `src/services/projects.ts`, REST + MCP | **PASS** (single-tenant: no organisations) | differential (`projects`), `mcp-contract`, `api`, cross-project isolation test in `failure` |
 | F02 | Keyword research: blended suggestions+ideas, related top-up, Google-Ads-only countries, clickstream, grouping flag, local (city) volume, 24 h cache, metric persistence | `services/keywords.ts`, `services/markets.ts` | **PASS** | differential (`keyword-research`: labs, grouped, clickstream, thin-seed fallback, Iceland); local-volume + cache verified in `mcp-contract` against the fake only |
@@ -26,14 +26,14 @@ backlink and rank-tracking calls against the real API.
 | F13 | Project context (4 standard sections, custom sections, competitors, key pages, research log; atomic batch; per-op error text) | `services/context.ts` | **PASS** | differential (`project-context`) |
 | F14 | Reports and templates (HTML validation rules, caps, unique titles, provenance, sandboxed viewing) | `services/reports.ts` | **PASS** for MCP + UI | differential (`reports`), browser test (sandbox) |
 | F14b | Public share links `/s/:token`, `/raw`, OG image, `/r/:id` | share + raw + `/r` redirect implemented, **off by default** (the SOURCE also refuses outside hosted mode) | **PARTIAL** — `og.png` social image not implemented | `api` suite |
-| F15 | Dashboard and setup steps (hideable); onboarding questions not built | `services/dashboard.ts`, Dashboard tab | **PARTIAL** — reads only local data; the original also refreshes a backlink snapshot from the provider, closeseo does not (costs money) | `usage`, e2e `visibility-ui` |
+| F15 | Dashboard and setup steps (hideable); onboarding questions not built | `services/dashboard.ts`, Dashboard tab | **PARTIAL** — reads only local data; the original also refreshes a backlink snapshot from the provider, CloseSEO does not (costs money) | `usage`, e2e `visibility-ui` |
 | F16 | SAM in-app AI agent (chat, project-scoped tools, project memory, web reading, per-turn cost control) | `src/agent/*`, Assistant tab | **PARTIAL** — own implementation of the same idea, not a port. Missing: streaming replies, the original's skills/playbooks, its onboarding flow, context compaction beyond a size trim, billing metering, its durable-object persistence | `agent.test.ts` (24 tests against a fake model), `e2e/assistant-ui.test.ts` (real browser), live run against OpenRouter (6 messages, about $0.006). **Not compared side by side with the original agent** (it runs inside Cloudflare durable objects and needs a frontier model at high cost) |
 | F17 | MCP server: stateless JSON-RPC, 58 tools with identical schemas/descriptions, validation messages, defaults | `src/mcp/*` | **PASS** for all 58 tools (the 8 local-SEO tools offline only) | `tools/list` deep-equals the SOURCE contract; validation sweep of ~60 invalid-input cases compared by differential; all outputs validated against the SOURCE output schemas |
 | F17b | MCP OAuth provider, dynamic client registration, consent screen | static bearer key (`AUTH_MODE=api_key`) instead. (Google OAuth for Search Console/Analytics is separate and implemented, see F11/F12.) | **NOT IMPLEMENTED** (different mechanism) | `api` suite |
 | F18 | Auth modes: `local_noauth`, `cloudflare_access`, `hosted` (Better Auth, orgs, invites) | `local_noauth` + `api_key` | **PARTIAL** — `cloudflare_access` and `hosted` not implemented | `api`, `process` suites |
 | F19 | Billing: spend ledger by provider/feature/project, monthly budgets (global and per project) that block new paid calls, Usage page. Payments, credits purchase, Autumn/Svix/Loops, referrals | `services/usage.ts`, Usage tab | **PARTIAL (own design)** — metering and caps only; payment processing is a hosted-service concern and is not built | `usage` |
 | F20 | Settings, GDPR erasure CLI | project delete only | **PARTIAL** | `api` |
-| F21 | Health endpoint, setup status, security headers, telemetry heartbeat | `/api/health`, `frame-ancestors 'self'`, `nosniff`; **no telemetry** by design | **PASS** (health shape is closeseo's own: no gsc/rendering checks) | `api` |
+| F21 | Health endpoint, setup status, security headers, telemetry heartbeat | `/api/health`, `frame-ancestors 'self'`, `nosniff`; **no telemetry** by design | **PASS** (health shape is CloseSEO's own: no gsc/rendering checks) | `api` |
 | F22 | Agent plugin + skills | — | **NOT INCLUDED** (content is the source project's; write your own) | — |
 | F23 | Marketing/docs website | — | **NOT INCLUDED** (branding/content not copied) | — |
 | F24 | Ops scripts (seed, repair, erase user, D1→PG migration) | — | **NOT IMPLEMENTED** | — |
@@ -42,7 +42,7 @@ backlink and rank-tracking calls against the real API.
 
 ## Known, documented differences (differential `KNOWN_DIFF`)
 
-| Where | SOURCE | closeseo | Why |
+| Where | SOURCE | CloseSEO | Why |
 |-------|--------|----------|-----|
 | `serverInfo` | its own name/title/version/icons/websiteUrl | its own name/title/version | branding is not copied |
 | `set_report_sharing(public:true)` | "Sharing is only available on hosted OpenSEO." | refused unless `ENABLE_PUBLIC_SHARING=1`, with its own message | same default behaviour, own wording |

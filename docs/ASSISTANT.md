@@ -1,7 +1,7 @@
 # The assistant
 
 An optional chat assistant for each project (Assistant tab). It answers questions and does research by calling the same tools the
-MCP server offers, scoped to the project you are in, using your project memory as context. It is closeseo's own implementation of the
+MCP server offers, scoped to the project you are in, using your project memory as context. It is CloseSEO's own implementation of the
 idea behind OpenSEO's in-app agent ("SAM"): same purpose, different code, a cheaper default model and tighter limits.
 
 ## Turn it on
@@ -11,7 +11,7 @@ OPENROUTER_API_KEY=sk-or-...        # from https://openrouter.ai/keys. Create a 
 OPENROUTER_MODEL=openai/gpt-4o-mini # default; any OpenRouter model that supports tool calling
 ```
 
-Restart closeseo. Without a key the tab explains how to enable it and nothing else changes.
+Restart CloseSEO. Without a key the tab explains how to enable it and nothing else changes.
 
 ## What it costs
 

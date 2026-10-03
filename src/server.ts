@@ -15,7 +15,7 @@ const recovered = failInterruptedRuns(ctx) + failInterruptedAudits(ctx);
 if (recovered) console.warn(`${recovered} job(s) were still running when the server stopped and are now marked failed`);
 
 const server = serve({ fetch: createApp(ctx).fetch, port: config.port, hostname: config.host }, (info) => {
-  console.log(`closeseo listening on http://${info.address}:${info.port} (auth: ${config.authMode}, db: ${config.databasePath})`);
+  console.log(`CloseSEO listening on http://${info.address}:${info.port} (auth: ${config.authMode}, db: ${config.databasePath})`);
   if (!config.dataforseoKey) console.warn("No DATAFORSEO_API_KEY configured, so the SEO data features are switched off.");
   if (config.authMode === "local_noauth" && config.host !== "127.0.0.1" && config.host !== "localhost")
     console.warn("WARNING: local_noauth is bound to a non-loopback address, which leaves an admin interface open to anyone. Put authentication in front of it or use AUTH_MODE=api_key.");

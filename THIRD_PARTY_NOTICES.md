@@ -2,7 +2,7 @@
 
 ## every-app/open-seo (MIT) — compatibility acknowledgement
 
-closeseo is an independent implementation, built to be behaviourally compatible with
+CloseSEO is an independent implementation, built to be behaviourally compatible with
 [every-app/open-seo](https://github.com/every-app/open-seo) (v0.1.10, commit db8bde1). It does not include that project's source files.
 
 **Status of this branch (`independent-rewrite`).** The prose and reference data that earlier versions took from that project were

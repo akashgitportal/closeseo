@@ -1,10 +1,10 @@
-# closeseo
+# CloseSEO
 
 A self-hostable SEO toolkit: keyword research, saved keywords, SERP and domain analysis, backlinks, rank tracking,
 site audits and shareable reports — with a web UI **and an MCP server** so AI agents (Claude Code and others) can
 use your SEO data directly. You bring your own [DataForSEO](https://dataforseo.com) account and pay them directly.
 
-closeseo is an independent implementation, behaviourally compatible with
+CloseSEO is an independent implementation, behaviourally compatible with
 [every-app/open-seo](https://github.com/every-app/open-seo) (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 > **Status: 0.1.0, core feature set.** What is and is not implemented is listed honestly in
@@ -77,7 +77,7 @@ open-seo (which uses `1.28`).
 
 ## Costs, usage and budgets
 
-closeseo has no payments of its own: you pay DataForSEO and OpenRouter directly. It records every billed call (the cost each provider
+CloseSEO has no payments of its own: you pay DataForSEO and OpenRouter directly. It records every billed call (the cost each provider
 reports), attributes it to a project and a feature, and shows it on the **Usage** page. You can set a **monthly budget** overall or per
 project; once it is reached, new paid calls are refused with a clear message until you raise the limit. A request that is already
 running is never interrupted. Opening the dashboard never spends anything.
