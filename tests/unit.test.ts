@@ -18,7 +18,7 @@ test("normalizeDomain strips scheme, path, port, www and lowercases", () => {
   assert.equal(normalizeDomain("blog.example.co.uk"), "blog.example.co.uk");
 });
 test("normalizeDomain rejects junk", () => {
-  for (const bad of ["", "   ", "nodot", "exa mple.com", "-a.com", "http://", "a..com"]) assert.throws(() => normalizeDomain(bad), /valid domain|empty/, bad);
+  for (const bad of ["", "   ", "nodot", "exa mple.com", "-a.com", "http://", "a..com"]) assert.throws(() => normalizeDomain(bad), /domain name/, bad);
 });
 test("hostMatchesDomain only matches the domain or its subdomains", () => {
   assert.ok(hostMatchesDomain("example.com", "example.com"));
@@ -34,9 +34,9 @@ test("research target: scope defaults, display, path normalisation, validation m
   assert.equal(t("example.com/a/b", "exact_url").display, "example.com/a/b");
   assert.equal(t("example.com/a/b", "domain").display, "example.com");
   assert.equal(t("shop.example.co.uk").hostname, "shop.example.co.uk");
-  assert.throws(() => t("   "), /Enter a domain or URL/);
-  assert.throws(() => t("example.com", "subfolder"), /Add a path to use Subfolder/);
-  for (const bad of ["not a domain", "example.por", "my_site.com", "localhost", "192.168.0.1", "http://", "user:pw@example.com"]) assert.throws(() => t(bad), /valid domain|credentials/, bad);
+  assert.throws(() => t("   "), /Give a domain or a page URL/);
+  assert.throws(() => t("example.com", "subfolder"), /subfolder scope needs a path/);
+  for (const bad of ["not a domain", "example.por", "my_site.com", "localhost", "192.168.0.1", "http://", "user:pw@example.com"]) assert.throws(() => t(bad), /domain name|username or password/, bad);
 });
 test("config: defaults and validation", () => {
   const c = loadConfig({} as never);
@@ -98,7 +98,7 @@ test("SSRF policy blocks private, loopback, link-local, mapped and metadata addr
   for (const a of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fe80::1", "fd00::1", "::ffff:127.0.0.1", "224.0.0.1"]) assert.ok(isBlockedAddress(a), a);
   for (const a of ["8.8.8.8", "1.1.1.1", "172.32.0.1", "2606:4700:4700::1111"]) assert.ok(!isBlockedAddress(a), a);
   for (const u of ["http://localhost/", "http://127.0.0.1:8080/", "http://[::1]/", "http://169.254.169.254/latest", "http://foo.internal/", "ftp://example.com/", "file:///etc/passwd", "http://user:pw@example.com/", "javascript:alert(1)", "not a url"])
-    assert.throws(() => assertCrawlableUrl(u), /private|local|http|credentials|valid/i, u);
+    assert.throws(() => assertCrawlableUrl(u), /private|local|http|username or password|read as a URL/i, u);
   assert.doesNotThrow(() => assertCrawlableUrl("https://example.com/"));
   assert.doesNotThrow(() => assertCrawlableUrl("http://127.0.0.1/", true));
 });
@@ -150,7 +150,7 @@ test("market registry: providers, languages, resolution rules", () => {
   assert.deepEqual(resolveMarket({ languageCode: "en" }, project), { locationCode: 2704, languageCode: "en" });
   assert.deepEqual(resolveMarket({}, project), project);
   assert.deepEqual(resolveLabsMarket({}, { locationCode: 2352, languageCode: "is" }), { locationCode: 2840, languageCode: "en" }, "a project market Labs cannot serve falls back to the US");
-  assert.throws(() => assertLanguageForLocation(2840, "ru"), /Language 'ru' is not available for this location\. Available: en, es\./);
+  assert.throws(() => assertLanguageForLocation(2840, "ru"), /Language "ru" cannot be used with this location\. Choose one of: en, es\./);
   assert.doesNotThrow(() => assertLanguageForLocation(2840, "es")); assert.doesNotThrow(() => assertLanguageForLocation(2352, "is"));
 });
 test("rank tracking pricing: live vs queued pages, operator multiplier, per-call ceilings, markup", () => {
@@ -167,8 +167,8 @@ test("rank tracking pricing: live vs queued pages, operator multiplier, per-call
   assert.deepEqual(estimateScheduled(["a", "b"], "both", 20, "weekly", 1.28), { scheduleInterval: "weekly", costUsd: 0.00538, costCredits: 6, checksPerMonth: 4, monthlyCostUsd: 0.00538 * 4, monthlyCostCredits: 24 });
 });
 
-test("validation messages: unknown keys and union failures read like the SOURCE", async () => {
+test("validation messages: unknown keys are reported with their path", async () => {
   const { formatValidationError } = await import("../src/mcp/validation.ts");
-  assert.equal(formatValidationError("t", [{ keyword: "additionalProperties", instancePath: "", schemaPath: "#/additionalProperties", params: { additionalProperty: "bogus" }, message: "x" }]), 'Input validation error: Invalid arguments for tool t: Unrecognized key: "bogus"');
-  assert.equal(formatValidationError("t", [{ keyword: "additionalProperties", instancePath: "/filters/0", schemaPath: "#/additionalProperties", params: { additionalProperty: "z" }, message: "x" }]), 'Input validation error: Invalid arguments for tool t: filters.0: Unrecognized key: "z"');
+  assert.equal(formatValidationError("t", [{ keyword: "additionalProperties", instancePath: "", schemaPath: "#/additionalProperties", params: { additionalProperty: "bogus" }, message: "x" }]), 'Invalid input for t:\n- input contains an unknown field "bogus"');
+  assert.equal(formatValidationError("t", [{ keyword: "additionalProperties", instancePath: "/filters/0", schemaPath: "#/additionalProperties", params: { additionalProperty: "z" }, message: "x" }]), 'Invalid input for t:\n- filters.0 contains an unknown field "z"');
 });

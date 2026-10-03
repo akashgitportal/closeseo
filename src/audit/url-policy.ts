@@ -32,18 +32,18 @@ export function assertCrawlableUrl(raw: string, allowPrivate = false): URL {
   try {
     u = new URL(raw);
   } catch {
-    throw new AppError("VALIDATION_ERROR", `"${raw}" is not a valid URL`);
+    throw new AppError("VALIDATION_ERROR", `"${raw}" cannot be read as a URL`);
   }
   if (u.protocol !== "http:" && u.protocol !== "https:")
-    throw new AppError("VALIDATION_ERROR", "Only http and https URLs can be audited");
+    throw new AppError("VALIDATION_ERROR", "Only http:// and https:// addresses can be audited");
   if (u.username || u.password)
-    throw new AppError("VALIDATION_ERROR", "URLs with embedded credentials are not allowed");
+    throw new AppError("VALIDATION_ERROR", "Addresses containing a username or password are refused");
   const host = u.hostname.replace(/^\[|\]$/g, "");
   if (!allowPrivate) {
     if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local"))
-      throw new AppError("VALIDATION_ERROR", "Private and local addresses cannot be audited");
+      throw new AppError("VALIDATION_ERROR", "Addresses on a private or local network are not audited");
     if (isIP(host) && isBlockedAddress(host))
-      throw new AppError("VALIDATION_ERROR", "Private and local addresses cannot be audited");
+      throw new AppError("VALIDATION_ERROR", "Addresses on a private or local network are not audited");
   }
   return u;
 }
@@ -57,7 +57,7 @@ export function guardedLookup(allowPrivate: boolean) {
       if (err) return done(err);
       const list = addrs as { address: string; family: number }[];
       if (!allowPrivate && list.some((a) => isBlockedAddress(a.address)))
-        return done(new Error(`Blocked: ${hostname} resolves to a private address`));
+        return done(new Error(`${hostname} points at a private address and was blocked`));
       if ((opts as { all?: boolean }).all) return done(null, list);
       done(null, list[0]!.address, list[0]!.family);
     });

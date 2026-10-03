@@ -459,7 +459,7 @@ async function aiTab(p) {
   };
   const promptForm = (out) => {
     const models = h("div", { class: "row checks" }, Object.keys(MODEL_LABEL).map((m) => h("label", { class: "inline" }, h("input", { type: "checkbox", name: "m", value: m, checked: true }), MODEL_LABEL[m])));
-    const country = h("select", { name: "country" }, h("option", { value: "default" }, "No country preference"), info.webSearchCountries.all.map((c) => h("option", { value: c }, c)));
+    const country = h("select", { name: "country" }, h("option", { value: "default" }, "Any country"), info.webSearchCountries.all.map((c) => h("option", { value: c }, c)));
     const f = h("form", { class: "card", onsubmit: async (e) => {
       e.preventDefault();
       const btn = f.querySelector("button[type=submit]"); btn.disabled = true;

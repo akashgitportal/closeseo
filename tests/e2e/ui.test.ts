@@ -107,7 +107,7 @@ test("site audit: run against a local fixture, watch it finish, open the issue l
   await page.locator("table a").first().click();
   await page.waitForSelector("h2:has-text('Issues')");
   assert.match((await page.textContent("main"))!, /critical|warning/);
-  assert.match((await page.textContent("main"))!, /Missing meta description|Thin content|Page returns a 4xx/);
+  assert.match((await page.textContent("main"))!, /No meta description|Little text|answers with a 4xx/);
 });
 
 test("context: save a section and see it persisted after reload", async () => {
@@ -135,7 +135,7 @@ test("reports created through the API are listed and rendered inside a sandboxed
   assert.equal(await page.evaluate(() => (window as any).__pwned), undefined, "report script cannot reach the app");
   await page.click('button:has-text("Share publicly")');
   await page.waitForSelector("#toast.show");
-  assert.match((await page.textContent("#toast"))!, /disabled/i, "sharing is off by default and says why");
+  assert.match((await page.textContent("#toast"))!, /switched off/i, "sharing is off by default and says why");
 });
 
 test("settings: rename then delete the project", async () => {

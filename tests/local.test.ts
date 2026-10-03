@@ -24,16 +24,16 @@ test("all 58 tools now answer, none says 'not available'", async () => {
 test("business profile: location handling, text summary and the not-found hint", async () => {
   const r = await c.tool("get_business_profile", { projectId: pid, businessName: "Joe's Pizza" });
   assert.equal(r.structuredContent.profile.cid, "111");
-  assert.match(r.content[0]!.text, /^Google Business Profile:\n- title: Joe's Pizza\n- category: pizza_restaurant \(\+ restaurant\)\n- rating: 4.60 from 820 reviews\n- rating breakdown: 5★ 70, 4★ 20, 3★ 5, 2★ 2, 1★ 3/);
-  assert.match(r.content[0]!.text, /- hours: mon 09:00-17:30 \| tue 09:00-12:00,13:00-17:00 \| wed closed \| thu closed \| fri 09:00-17:00 \| sat closed \| sun closed/);
-  assert.match(r.content[0]!.text, /- check_url: https:\/\/google\.com\/search\?q=111/);
+  assert.match(r.content[0]!.text, /^Google Business Profile found:\ntitle: Joe's Pizza\ncategory: pizza_restaurant \(\+ restaurant\)\nrating: 4.60 from 820 reviews\nrating breakdown: 5★ 70, 4★ 20, 3★ 5, 2★ 2, 1★ 3/);
+  assert.match(r.content[0]!.text, /hours: mon 09:00-17:30 \| tue 09:00-12:00,13:00-17:00 \| wed closed \| thu closed \| fri 09:00-17:00 \| sat closed \| sun closed/);
+  assert.match(r.content[0]!.text, /check_url: https:\/\/google\.com\/search\?q=111/);
   const sent = bodies("/v3/business_data/google/my_business_info/live")[0];
   assert.deepEqual(sent, { keyword: "Joe's Pizza", location_code: 2840, language_code: "en" });
   await c.tool("get_business_profile", { projectId: pid, cid: "222", near: { ...near, radiusKm: 0.2 } });
   assert.deepEqual(bodies("/v3/business_data/google/my_business_info/live")[1], { keyword: "cid:222", location_coordinate: "40.7128,-74.006,200", language_code: "en" });
   const miss = await c.tool("get_business_profile", { projectId: pid, businessName: "Nobody Here" });
   assert.equal(miss.structuredContent.profile, null);
-  assert.match(miss.content[0]!.text, /No Google Business Profile matched/);
+  assert.match(miss.content[0]!.text, /Google has no business profile for that identifier/);
 });
 
 test("listings: radius in whole km, filters and sort order forwarded, empty result is not an error", async () => {
@@ -44,7 +44,7 @@ test("listings: radius in whole km, filters and sort order forwarded, empty resu
   assert.deepEqual([sent.order_by, sent.is_claimed, sent.limit], [["rating.votes_count,desc"], false, 20]);
   assert.deepEqual(r.structuredContent.businesses.map((b: any) => b.title), ["Slice Heaven"]);
   assert.ok(!("ignored_provider_field" in r.structuredContent.businesses[0]), "only the documented fields are kept");
-  assert.match(r.content[0]!.text, /^Found 1 local business rows\.\ntitle \| category \| rating \| reviews \| phone \| address\nSlice Heaven \| pizza_restaurant \| 4.10 \| 95 \| \+1 555 0102 \| 222 Main St$/);
+  assert.match(r.content[0]!.text, /^1 local business found\.\ntitle \| category \| rating \| reviews \| phone \| address\nSlice Heaven \| pizza_restaurant \| 4.10 \| 95 \| \+1 555 0102 \| 222 Main St$/);
   const none = await c.tool("search_local_businesses", { projectId: pid, near: { ...near, radiusKm: 5 }, query: "nothing-here" });
   assert.deepEqual([none.isError, none.structuredContent.businesses], [undefined, []]);
   assert.equal((await c.tool("search_local_businesses", { projectId: pid, near: { ...near, radiusKm: 5 }, query: "bad-coordinate" })).isError, true, "a real provider error is still an error");
@@ -59,7 +59,7 @@ test("reviews: queued task is collected in one call, resumable when it is still 
   assert.ok(!("extra_noise" in done.structuredContent.reviews[0]));
   const posted = bodies("/v3/business_data/google/reviews/task_post")[0];
   assert.deepEqual([posted.keyword, posted.sort_by, posted.priority, posted.depth], ["Joe's Pizza", "newest", 2, 10]);
-  assert.match(done.content[0]!.text, /^Collected 10 reviews of 820 total\. Review text is truncated/);
+  assert.match(done.content[0]!.text, /^Got 10 reviews \(the profile has 820 in total\)\. The table shortens long reviews/);
   assert.match(done.content[0]!.text, /…\s*\| yes|…\s*\| no/, "long review text is cut at 120 characters");
   const ext = await c.tool("get_business_reviews", { projectId: pid, cid: "111", includeOtherSources: true });
   assert.match(ext.structuredContent.taskId, /^extended:/);
@@ -70,7 +70,7 @@ test("reviews: queued task is collected in one call, resumable when it is still 
   const slow = await c.tool("get_business_reviews", { projectId: pid, businessName: "Joe's Pizza" });
   assert.equal(slow.structuredContent.status, "processing");
   assert.equal(calls("/v3/business_data/google/reviews/task_get/" + encodeURIComponent(slow.structuredContent.taskId.split(":")[1])), 6, "six checks, then it hands back the task id");
-  assert.match(slow.content[0]!.text, /Call get_business_reviews again with taskId "google:bd-.*" in 30-60 seconds/);
+  assert.match(slow.content[0]!.text, /Call get_business_reviews again with taskId "google:bd-.*" in a minute or so/);
   await control({ taskMode: "ok" });
   const resumed = await c.tool("get_business_reviews", { projectId: pid, taskId: slow.structuredContent.taskId });
   assert.equal(resumed.structuredContent.status, "completed");
@@ -78,16 +78,16 @@ test("reviews: queued task is collected in one call, resumable when it is still 
   const usage = (await (await c.get("/api/usage")).json()) as any;
   assert.equal(usage.byFeature.find((f: any) => f.feature === "local").calls, 3, "three posted tasks were billed once each (not again when collected)");
   const none = await c.tool("get_business_reviews", { projectId: pid, businessName: "Nobody Here" });
-  assert.match(none.content[0]!.text, /This profile has no reviews matching the request/);
+  assert.match(none.content[0]!.text, /Nothing matched the request/);
 });
 
 test("posts: bare task ids only, empty profile is reported plainly", async () => {
   const r = await c.tool("get_business_updates", { projectId: pid, businessName: "Joe's Pizza" });
   assert.equal(r.structuredContent.updates.length, 3);
-  assert.match(r.content[0]!.text, /^Collected 3 Google Business posts\.\n#.*posted.*post.*url/);
-  assert.match((await c.tool("get_business_updates", { projectId: pid, businessName: "Slice Heaven" })).content[0]!.text, /published no posts/);
+  assert.match(r.content[0]!.text, /^Got 3 Google Business posts\.\n#.*posted.*post.*url/);
+  assert.match((await c.tool("get_business_updates", { projectId: pid, businessName: "Slice Heaven" })).content[0]!.text, /has not published any posts/);
   const bad = await c.tool("get_business_updates", { projectId: pid, taskId: "google:abc" });
-  assert.match(bad.content[0]!.text, /looks like a get_business_reviews taskId/);
+  assert.match(bad.content[0]!.text, /belongs to get_business_reviews/);
 });
 
 test("task posting failures keep the provider's message; paused accounts say so", async () => {
@@ -103,7 +103,7 @@ test("categories: ranked list, filter, 7-day cache, and malformed provider rows 
   const all = await c.tool("list_business_categories", { projectId: pid, limit: 200 });
   assert.deepEqual(all.structuredContent.categories.map((x: any) => x.category), ["pizza_restaurant", "plumber", "pizza_delivery", "bakery"]);
   const q = await c.tool("list_business_categories", { projectId: pid, query: "PIZZA" });
-  assert.match(q.content[0]!.text, /^Found 2 categories matching "PIZZA"; showing 2\.\ncategory \| businesses\npizza_restaurant \| 5000\npizza_delivery \| 400$/);
+  assert.match(q.content[0]!.text, /^2 categories contain "PIZZA"; 2 shown\.\ncategory \| businesses\npizza_restaurant \| 5000\npizza_delivery \| 400$/);
   assert.equal(calls("/v3/business_data/business_listings/categories"), 1, "second call served from cache");
   assert.equal(((await (await c.get("/api/usage")).json()) as any).totalUsd, 0, "the category list is free");
 });
@@ -115,7 +115,7 @@ test("local rank grid: layout, summary, zoom, request fields and failures", asyn
   assert.deepEqual([g.grid[0].row, g.grid[0].col, g.grid[4].row, g.grid[4].col], [0, 0, 1, 1]);
   assert.equal(g.matchedBusiness.title, "Joe's Pizza");
   assert.equal(g.summary.pointsSearched, 9);
-  assert.match(r.content[0]!.text, /^Local rank grid for "pizza" \(3x3, 2 km spacing, zoom 13, top 20 checked\)\./);
+  assert.match(r.content[0]!.text, /^Map rankings for "pizza" on a 3x3 grid, points 2 km apart, zoom 13, looking at the top 20 results\./);
   assert.equal(calls("/v3/serp/google/maps/live/advanced"), 9);
   const sent = bodies("/v3/serp/google/maps/live/advanced")[0];
   assert.deepEqual([sent.device, sent.os, sent.depth, sent.search_places, sent.language_code], ["mobile", "android", 20, false, "en"]);

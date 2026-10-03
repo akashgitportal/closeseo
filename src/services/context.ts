@@ -80,7 +80,7 @@ function parseNote(note: string | null): Record<string, string | undefined> {
 
 function checkContent(content: string) {
   if (content.length > MAX_SECTION_CHARS)
-    throw new AppError("VALIDATION_ERROR", `Sections are capped at ${MAX_SECTION_CHARS} characters. Summarize instead of pasting.`);
+    throw new AppError("VALIDATION_ERROR", `A section holds at most ${MAX_SECTION_CHARS} characters. Condense the text rather than pasting it whole.`);
 }
 
 function count(ctx: Ctx, table: string, projectId: string): number {
@@ -105,7 +105,7 @@ export function updateContext(ctx: Ctx, projectId: string, updates: ContextUpdat
         for (const c of u.addCompetitors) {
           const domain = normalizeDomain(c.domain);
           if (count(ctx, "context_competitors", projectId) >= MAX_LIST && !ctx.db.prepare("SELECT 1 FROM context_competitors WHERE project_id=? AND domain=?").get(projectId, domain))
-            throw new AppError("VALIDATION_ERROR", `At most ${MAX_LIST} competitors per project`);
+            throw new AppError("VALIDATION_ERROR", `A project can list ${MAX_LIST} competitors at most`);
           ctx.db.prepare(
             `INSERT INTO context_competitors (id,project_id,domain,note,updated_at,updated_by) VALUES (?,?,?,?,?,?)
              ON CONFLICT(project_id,domain) DO UPDATE SET note=excluded.note, updated_at=excluded.updated_at, updated_by=excluded.updated_by`,
@@ -120,7 +120,7 @@ export function updateContext(ctx: Ctx, projectId: string, updates: ContextUpdat
       } else if ("addKeyPages" in u) {
         for (const p of u.addKeyPages) {
           if (count(ctx, "context_key_pages", projectId) >= MAX_LIST && !ctx.db.prepare("SELECT 1 FROM context_key_pages WHERE project_id=? AND url=?").get(projectId, p.url))
-            throw new AppError("VALIDATION_ERROR", `At most ${MAX_LIST} key pages per project`);
+            throw new AppError("VALIDATION_ERROR", `A project can list ${MAX_LIST} key pages at most`);
           ctx.db.prepare(
             `INSERT INTO context_key_pages (id,project_id,url,note,updated_at,updated_by) VALUES (?,?,?,?,?,?)
              ON CONFLICT(project_id,url) DO UPDATE SET note=excluded.note, updated_at=excluded.updated_at, updated_by=excluded.updated_by`,
@@ -137,7 +137,7 @@ export function updateContext(ctx: Ctx, projectId: string, updates: ContextUpdat
       }
       } catch (e) {
         if (e instanceof AppError && e.code === "VALIDATION_ERROR")
-          throw new AppError("VALIDATION_ERROR", `updates[${index}] was rejected (nothing in this batch was applied): ${e.message}`);
+          throw new AppError("VALIDATION_ERROR", `Change #${index + 1} could not be applied, so none of the changes in this request were saved: ${e.message}`);
         throw e;
       }
     }

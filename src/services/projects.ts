@@ -38,12 +38,12 @@ export function createProject(
 ): Project {
   const name = input.name.trim();
   if (!name || name.length > 120)
-    throw new AppError("VALIDATION_ERROR", "Project name must be 1-120 characters");
+    throw new AppError("VALIDATION_ERROR", "A project name needs 1 to 120 characters");
   if (input.languageCode && input.locationCode === undefined)
-    throw new AppError("VALIDATION_ERROR", "✖ A language requires a location.\n  → at languageCode");
+    throw new AppError("VALIDATION_ERROR", "languageCode can only be set together with locationCode");
   const locationCode = input.locationCode ?? DEFAULT_LOCATION;
   const languageCode = input.languageCode ?? getLanguageCode(locationCode);
-  const domain = input.domain ? normalizeDomain(input.domain, "Enter a valid domain, like acme.com.") : null;
+  const domain = input.domain ? normalizeDomain(input.domain, "That does not look like a domain name (expected something like acme.com)") : null;
   const id = newId();
   ctx.db
     .prepare(
@@ -61,7 +61,7 @@ export function listProjects(ctx: Ctx): Project[] {
 
 export function getProject(ctx: Ctx, id: string): Project {
   const r = ctx.db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as Row | undefined;
-  if (!r) throw new AppError("NOT_FOUND", "NOT_FOUND");
+  if (!r) throw new AppError("NOT_FOUND", "No project with that id exists");
   return toProject(r);
 }
 
@@ -77,9 +77,9 @@ export function updateProject(
     (patch.locationCode !== undefined ? getLanguageCode(locationCode) : cur.languageCode);
   const name = patch.name?.trim() ?? cur.name;
   if (!name || name.length > 120)
-    throw new AppError("VALIDATION_ERROR", "Project name must be 1-120 characters");
+    throw new AppError("VALIDATION_ERROR", "A project name needs 1 to 120 characters");
   const domain =
-    patch.domain === undefined ? cur.domain : patch.domain ? normalizeDomain(patch.domain, "Enter a valid domain, like acme.com.") : null;
+    patch.domain === undefined ? cur.domain : patch.domain ? normalizeDomain(patch.domain, "That does not look like a domain name (expected something like acme.com)") : null;
   ctx.db
     .prepare("UPDATE projects SET name=?, domain=?, location_code=?, language_code=? WHERE id=?")
     .run(name, domain, locationCode, languageCode, id);

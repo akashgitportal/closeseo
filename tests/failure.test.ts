@@ -63,7 +63,7 @@ test("provider unreachable (connection refused)", async () => {
   const dead = makeClient(makeCtx({ dfsUrl: "http://127.0.0.1:1" }));
   const p = (await dead.tool("create_project", { name: "D" })).structuredContent.project.id;
   const r = await dead.tool("get_keyword_metrics", { projectId: p, keywords: ["a"] });
-  assert.ok(r.isError); assert.match(r.content[0]!.text, /DataForSEO request failed/);
+  assert.ok(r.isError); assert.match(r.content[0]!.text, /DataForSEO request did not complete/);
 });
 test("wrong credentials against the real fake are surfaced as an auth problem", async () => {
   const bad = makeClient(makeCtx({ dfsUrl: dfs.url, DATAFORSEO_API_KEY: Buffer.from("x:y").toString("base64") }));
@@ -78,8 +78,8 @@ test("tools never cross project boundaries", async () => {
   assert.equal((await c.tool("remove_saved_keywords", { projectId: other, savedKeywordIds: [id] })).structuredContent.deletedCount, 0);
   assert.equal((await c.tool("list_saved_keywords", { projectId: other })).structuredContent.totalCount, 0);
   const t = (await c.tool("create_rank_tracker", { projectId: pid })).structuredContent.trackerId;
-  assert.equal((await c.tool("get_rank_tracker", { projectId: other, trackerId: t })).content[0]!.text, "Rank tracking config not found");
-  assert.equal((await c.tool("add_rank_tracking_keywords", { projectId: other, trackerId: t, keywords: ["x"] })).content[0]!.text, "Rank tracking config not found");
+  assert.equal((await c.tool("get_rank_tracker", { projectId: other, trackerId: t })).content[0]!.text, "No such rank tracker in this project");
+  assert.equal((await c.tool("add_rank_tracking_keywords", { projectId: other, trackerId: t, keywords: ["x"] })).content[0]!.text, "No such rank tracker in this project");
   const rep = (await c.tool("save_report", { projectId: pid, title: "t", summary: "s", html: "<html></html>" })).structuredContent.reportId;
   assert.equal((await c.tool("get_report", { projectId: other, reportId: rep })).content[0]!.text, `No report ${rep} in this project. Call list_reports to see what exists.`);
   assert.equal((await c.tool("delete_report", { projectId: other, reportId: rep })).content[0]!.text, `No report ${rep} in this project. Call list_reports to see what exists.`);
@@ -136,7 +136,7 @@ test("backlinks overview keeps the paid summary when the optional calls are paus
   assert.ok(!r.isError, r.content[0]!.text);
   const d = r.structuredContent;
   assert.equal(typeof d.overview.overview.summary.backlinks, "number"); assert.deepEqual(d.overview.overview.trends, []); assert.equal(d.referringDomains, undefined);
-  assert.match(d.scopeNote, /Some details were unavailable and are omitted: trend history .*; referring-domain breakdown/);
+  assert.match(d.scopeNote, /Part of the data could not be fetched and was left out: trend history .*; referring-domain breakdown/);
   await control({ pausePaths: [] });
   const full = (await cl.tool("get_backlinks_overview", { projectId: p, target: "example.com" })).structuredContent;
   assert.ok(full.overview.overview.trends.length > 0 && full.referringDomains.rows.length > 0 && !full.scopeNote);

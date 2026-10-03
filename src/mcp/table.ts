@@ -1,4 +1,4 @@
-/** Plain-text tables for MCP tool replies (the same layout agents already see from OpenSEO). */
+/** Plain-text tables for MCP tool replies (header row, then one ` | `-separated line per row). */
 export type Column<T> = { header: string; value: (row: T) => unknown; format?: (v: unknown) => string };
 
 export function cell(value: unknown): string {

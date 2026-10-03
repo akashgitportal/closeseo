@@ -48,8 +48,8 @@ export const gscHandlers: Record<string, Handler> = {
     if (!googleConfigured(ctx)) return notConfigured(env, a.projectId);
     const url = page(env, a.projectId, "/settings/integrations");
     const bad = (m: string): ToolResult => ({ data: { ok: false, reason: "invalid_request" }, text: m, url });
-    if (a.dimensions?.includes("searchAppearance") && a.dimensions.length > 1) return bad("searchAppearance must be the only dimension when used.");
-    if (Boolean(a.startDate) !== Boolean(a.endDate)) return bad("Provide both startDate and endDate, or neither (use dateRange instead).");
+    if (a.dimensions?.includes("searchAppearance") && a.dimensions.length > 1) return bad("Use searchAppearance on its own; it cannot be combined with other dimensions.");
+    if (Boolean(a.startDate) !== Boolean(a.endDate)) return bad("Give startDate and endDate together, or leave both out and use dateRange.");
     try {
       const requested = a.rowLimit ?? GSC_DEFAULT_ROW_LIMIT;
       const metricFilter = a.minPosition !== undefined || a.maxPosition !== undefined || a.minImpressions !== undefined ? { minPosition: a.minPosition, maxPosition: a.maxPosition, minImpressions: a.minImpressions } : null;
@@ -66,7 +66,7 @@ export const gscHandlers: Record<string, Handler> = {
       const nextStartRow = truncated && last ? startRow + r.rows.indexOf(last) + 1 : startRow + r.rows.length;
       const header = `${r.siteUrl} · ${dimensions.join("+")} · ${r.request.startDate}→${r.request.endDate} · ${rows.length} row${rows.length === 1 ? "" : "s"}${metricFilter ? ` · filtered ${r.rows.length} rows → ${kept.length}` : ""}${hasMore ? " (more available — paginate with startRow)" : ""}`;
       const table = rows.slice(0, 15).map((x) => `${x.keys?.join(" / ") ?? "(total)"} | ${x.clicks} clicks | ${x.impressions} impr | ${(x.ctr * 100).toFixed(1)}% | pos ${x.position?.toFixed(1) ?? "—"}`).join("\n");
-      return { data: { ok: true, siteUrl: r.siteUrl, startDate: r.request.startDate, endDate: r.request.endDate, dimensions, rowCount: rows.length, rows, hasMore, nextStartRow: hasMore ? nextStartRow : undefined }, text: rows.length ? `${header}\n${table}` : `${header}\nNo rows for this query/date range.`, url };
+      return { data: { ok: true, siteUrl: r.siteUrl, startDate: r.request.startDate, endDate: r.request.endDate, dimensions, rowCount: rows.length, rows, hasMore, nextStartRow: hasMore ? nextStartRow : undefined }, text: rows.length ? `${header}\n${table}` : `${header}\nSearch Console returned no rows for that query and date range.`, url };
     } catch (e) { return gscFailure(env, a.projectId, e); }
   },
 
@@ -89,9 +89,9 @@ export const gscHandlers: Record<string, Handler> = {
 function ga4Failure(env: ToolEnv, projectId: string, error: unknown): ToolResult {
   let code: string, message: string, retry: number | null | undefined;
   if (error instanceof Ga4ReportError) { code = error.code; message = error.message; retry = error.retryAfterSeconds; }
-  else if (error instanceof GscNotConnectedError) { code = "gsc_not_connected"; message = "Search Console is not connected for this project."; }
-  else if (isGoogleReconnectError(error)) { code = "gsc_reconnect_required"; message = "The Search Console connection has expired or was revoked."; }
-  else if (error instanceof Error && "status" in error) { code = "gsc_upstream_unavailable"; message = "Search Console reporting is temporarily unavailable."; }
+  else if (error instanceof GscNotConnectedError) { code = "gsc_not_connected"; message = "No Search Console site is linked to this project yet."; }
+  else if (isGoogleReconnectError(error)) { code = "gsc_reconnect_required"; message = "Google no longer accepts the saved Search Console sign-in (it expired or was revoked). Connect again."; }
+  else if (error instanceof Error && "status" in error) { code = "gsc_upstream_unavailable"; message = "Search Console could not be reached just now. Try again shortly."; }
   else throw error;
   const actionUrl = ["ga4_not_connected", "ga4_reconnect_required", "ga4_property_inaccessible"].includes(code) ? page(env, projectId, "/settings/integrations") : code.startsWith("gsc_") ? page(env, projectId, "/search-performance") : undefined;
   return { data: { status: "error", error: { code, message, retryAfterSeconds: retry, actionUrl } }, text: `${message}${actionUrl ? ` Continue here: ${actionUrl}` : ""}`, url: page(env, projectId, "") };
@@ -135,7 +135,7 @@ export const ga4Handlers: Record<string, Handler> = {
       const r = await getOrganicOverview(ctx, a.projectId, a);
       const range = r.request.resolvedDateRange, prev = r.request.previousDateRange;
       const head = `Organic overview for ${range.startDate} through ${range.endDate}, compared with ${prev.startDate} through ${prev.endDate}.${endNote(r)}${r.warnings.includes("trend_truncated") ? ` The trend was cut at ${r.trend.length} rows; use trend=weekly or a shorter date range for the full series.` : ""}`;
-      const text = !r.current ? `${head} No Organic Search rows for this date range.` : `${head}\n${OVERVIEW_METRICS.map((m) => `${m}: ${r.current![m] ?? "—"} (previous ${r.previous?.[m] ?? "—"})`).join("\n")}`;
+      const text = !r.current ? `${head} There was no organic-search traffic in this period.` : `${head}\n${OVERVIEW_METRICS.map((m) => `${m}: ${r.current![m] ?? "—"} (previous ${r.previous?.[m] ?? "—"})`).join("\n")}`;
       return { data: r as unknown as Record<string, unknown>, text, url: page(env, a.projectId, "/settings/integrations") };
     } catch (e) { return ga4Failure(env, a.projectId, e); }
   },
@@ -144,7 +144,7 @@ export const ga4Handlers: Record<string, Handler> = {
     getProject(ctx, a.projectId);
     try {
       const r = await getSearchOpportunities(ctx, a.projectId, a);
-      return { data: r as unknown as Record<string, unknown>, text: `Search opportunities: ${r.rowCount} returned from ${r.totalCandidateRows} candidates. ${r.coverage.matchedRows} candidates matched GA4 landing pages.`, url: page(env, a.projectId, "/search-performance") };
+      return { data: r as unknown as Record<string, unknown>, text: `${r.rowCount} search opportunities selected out of ${r.totalCandidateRows} candidate queries; ${r.coverage.matchedRows} of the candidates could be tied to a GA4 landing page.`, url: page(env, a.projectId, "/search-performance") };
     } catch (e) { return ga4Failure(env, a.projectId, e); }
   },
 
@@ -152,7 +152,7 @@ export const ga4Handlers: Record<string, Handler> = {
     getProject(ctx, a.projectId);
     try {
       const r = await getMeasurementHealth(ctx, a.projectId);
-      return { data: r as unknown as Record<string, unknown>, text: `Measurement health: ${r.summary.webStreamCount} web stream(s), ${r.summary.keyEventCount} key event(s), and ${r.summary.issueCount} diagnostic issue(s).`, url: page(env, a.projectId, "/settings/integrations") };
+      return { data: r as unknown as Record<string, unknown>, text: `Analytics setup check: ${r.summary.webStreamCount} web stream(s), ${r.summary.keyEventCount} key event(s), ${r.summary.issueCount} problem(s) flagged.`, url: page(env, a.projectId, "/settings/integrations") };
     } catch (e) { return ga4Failure(env, a.projectId, e); }
   },
 };

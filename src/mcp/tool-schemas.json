@@ -2,8 +2,8 @@
   "tools": [
     {
       "name": "whoami",
-      "title": "Who am I",
-      "description": "Confirms the connected OpenSEO account, server mode, token scopes, and current credit balance when the user asks to check their account or connection. Uses no credits — does not call DataForSEO.",
+      "title": "Check connection",
+      "description": "Reports which closeseo account and mode the client is connected as, plus the token scopes and the credit balance (the balance is null on a self-hosted server). Free: no DataForSEO call is made. Use it to confirm the connection works.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -77,8 +77,8 @@
     },
     {
       "name": "list_projects",
-      "title": "List projects",
-      "description": "Lists the user's projects. Uses no credits — does not call DataForSEO. Use this whenever you need a `projectId` for another OpenSEO tool. Returns an array of {id, name, domain, locationCode, languageCode}; pass the `id` value as `projectId`. locationCode/languageCode are the project's default market — tools fall back to them when a call omits location/language args. When the user belongs to several organizations, each project is labeled with its organization and organizationId (pass that to create_project).",
+      "title": "Show projects",
+      "description": "Returns every project as {id, name, domain, locationCode, languageCode}. Free, no DataForSEO call. Run it first whenever another tool needs a `projectId`, and pass the `id` of the project you want. The location and language are the project's default market, used by tools when a call leaves them out. Each project also carries a link to its page in the app.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -170,8 +170,8 @@
     },
     {
       "name": "create_project",
-      "title": "Create project",
-      "description": "Create a new project in the user's organization. Uses no credits — does not call DataForSEO. Provide a name, and optionally a domain and default market (locationCode/languageCode; a languageCode requires a locationCode). Returns the created {id, name, domain, locationCode, languageCode, url}; pass the returned `id` as `projectId` to other OpenSEO tools. Call list_projects first to avoid creating a duplicate.",
+      "title": "Add project",
+      "description": "Creates a project and returns {id, name, domain, locationCode, languageCode, url}; pass the new `id` as `projectId` to other tools. Free, no DataForSEO call. Only a name is required; add a domain and a default market if known (a languageCode needs a locationCode). Run list_projects first so you do not create a duplicate.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -180,25 +180,25 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 120,
-            "description": "Project name (1-120 characters)."
+            "description": "Project name, 1 to 120 characters."
           },
           "domain": {
-            "description": "Optional root domain for the project, e.g. \"example.com\" (host only, no scheme or path). Sets the default target for domain, backlink, and rank tools.",
+            "description": "Optional website of the project as a bare host such as \"example.com\" (no scheme, no path). It becomes the default target for domain, backlink and rank-tracking tools.",
             "type": "string",
             "maxLength": 255
           },
           "locationCode": {
-            "description": "Optional DataForSEO location code for the project's default market (e.g. 2840 = United States, 2504 = Morocco). Falls back to the organization default when omitted.",
+            "description": "Optional DataForSEO location code for the default market, for example 2840 for the United States or 2504 for Morocco. Defaults to the United States when left out.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "languageCode": {
-            "description": "Optional language code (e.g. \"en\", \"fr\"). Requires locationCode; derived from the location when omitted.",
+            "description": "Optional language code such as \"en\" or \"fr\". Needs a locationCode; when omitted it is taken from the location.",
             "type": "string"
           },
           "organizationId": {
-            "description": "Organization id to create the project in. Required when the user belongs to more than one organization — omitting it returns the list; confirm the choice with the user before retrying.",
+            "description": "Not supported by closeseo, which has a single owner and no organizations. Leave it out; sending it is rejected.",
             "type": "string",
             "minLength": 1
           }
@@ -284,8 +284,8 @@
     },
     {
       "name": "get_project_context",
-      "title": "Get project context",
-      "description": "Reads a project's shared memory: business overview, current goal, positioning, writing preferences, custom sections, competitors, key pages, and the recent research log. Uses no credits. Call this before SEO work to ground it in what the user already told OpenSEO, and check the research log before re-buying research. Sections listed as missing are the ones worth filling with update_project_context.",
+      "title": "Read project memory",
+      "description": "Returns what closeseo remembers about the project: the business overview, goal, positioning and writing style, any custom sections, the competitor and key-page lists and the latest research-log entries. Free. Load it before SEO work so you start from what the user has already said, and scan the research log so you do not pay twice for the same question. A section reported as missing is a prompt to ask the user and store the answer with update_project_context.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -293,7 +293,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           }
         },
         "required": [
@@ -399,8 +399,8 @@
     },
     {
       "name": "update_project_context",
-      "title": "Update project context",
-      "description": "Adds, edits, or deletes a project's shared memory so the app, SAM, and other agents see it. Uses no credits. Use the current project context to find the entries to remove. Send patch ops to clear sections, deleteCustomSection, removeCompetitors, removeKeyPages, or removeResearchLog. Sections are prose (~4,000 chars max), competitors and key pages are curated shortlists (100 max each), and appendResearchLog records research already bought. Report templates are managed separately. Confirm facts with the user before storing them.",
+      "title": "Edit project memory",
+      "description": "Edits the project's shared memory, which the app, the built-in assistant and other agents all read. Free. Send a list of patch operations: write or clear a section, add or remove a custom section, competitors, key pages or research-log entries. Sections hold prose (about 4,000 characters at most); competitors and key pages are short curated lists (100 each); appendResearchLog notes research that has already been paid for. Look at the current context first to find what to remove, and confirm facts with the user before saving them.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -408,7 +408,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "updates": {
             "minItems": 1,
@@ -445,7 +445,7 @@
                       "type": "string",
                       "maxLength": 60,
                       "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                      "description": "Lowercase letters and digits separated by hyphens, e.g. 'launch-plan'. No underscores or spaces. Use the same slug to edit or delete the section."
+                      "description": "Lowercase letters and digits joined by single hyphens, for instance 'launch-plan'; no underscores or spaces. The same slug identifies the section when you edit or delete it."
                     },
                     "title": {
                       "type": "string",
@@ -469,7 +469,7 @@
                       "type": "string",
                       "maxLength": 60,
                       "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                      "description": "Lowercase letters and digits separated by hyphens, e.g. 'launch-plan'. No underscores or spaces. Use the same slug to edit or delete the section."
+                      "description": "Lowercase letters and digits joined by single hyphens, for instance 'launch-plan'; no underscores or spaces. The same slug identifies the section when you edit or delete it."
                     }
                   },
                   "required": [
@@ -634,7 +634,7 @@
                 }
               ]
             },
-            "description": "Patch ops, applied in order. Clear a standard section with {section: \"current_goal\", content: \"\"}; delete a custom section with {deleteCustomSection: \"slug\"}; removeCompetitors takes domains, removeKeyPages takes URLs, and removeResearchLog takes entry IDs from the project context. Adds upsert by domain/url; research-log entries are date-stamped by the server."
+            "description": "A list of edits applied one after another. To empty a built-in section send {section: \"current_goal\", content: \"\"}. {deleteCustomSection: \"slug\"} drops a custom one. removeCompetitors expects domains, removeKeyPages expects URLs, removeResearchLog expects entry IDs (all visible in the project context). A competitor or page whose domain or URL is already listed is overwritten, and research-log entries get today's date from the server."
           }
         },
         "required": [
@@ -741,8 +741,8 @@
     },
     {
       "name": "list_saved_keywords",
-      "title": "List saved keywords",
-      "description": "Lists keywords saved to a project (with cached metrics like search volume, difficulty, CPC, and tags if available). Uses no credits — reads from OpenSEO's database, no DataForSEO call. Each row includes its saved-keyword ID for remove_saved_keywords. Use tag filters when the user asks for a saved segment; multiple tags match ANY tag.",
+      "title": "Browse saved keywords",
+      "description": "Returns the project's saved keywords with the metrics stored with them (volume, difficulty, CPC) and their tags. Free: it reads closeseo's own database, not DataForSEO. Every row carries the ID that remove_saved_keywords needs. To fetch one segment, filter by tag; several tags match a keyword that has any of them.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -750,16 +750,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "search": {
-            "description": "Optional keyword text filter.",
+            "description": "Only return keywords containing this text.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
           },
           "tags": {
-            "description": "Optional tag-name filters. Multiple tags match ANY tag.",
+            "description": "Only return keywords carrying at least one of these tag names.",
             "maxItems": 20,
             "type": "array",
             "items": {
@@ -769,7 +769,7 @@
             }
           },
           "limit": {
-            "description": "Maximum rows to return. Defaults to 100.",
+            "description": "How many rows to return at most. Default 100.",
             "anyOf": [
               {
                 "type": "number",
@@ -934,8 +934,8 @@
     },
     {
       "name": "remove_saved_keywords",
-      "title": "Remove saved keywords",
-      "description": "Permanently deletes keywords from a project's saved-keywords list by their row ID. Uses no credits — does not call DataForSEO. Missing, foreign-project, and repeated IDs are ignored; deletedCount reports rows actually removed. This does not affect Rank Tracking; use remove_rank_tracking_keywords for that list separately.",
+      "title": "Delete saved keywords",
+      "description": "Deletes keywords from the project's saved list by row ID, permanently. Free. IDs that do not exist, belong to another project or repeat are skipped, and deletedCount says how many rows were really removed. The rank-tracking keyword list is separate and untouched; use remove_rank_tracking_keywords for that.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -943,7 +943,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "savedKeywordIds": {
             "minItems": 1,
@@ -953,7 +953,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Saved-keyword row IDs to delete. Use the `id` values returned by list_saved_keywords."
+            "description": "Row IDs of the saved keywords to delete, taken from the `id` field of list_saved_keywords."
           }
         },
         "required": [
@@ -1011,8 +1011,8 @@
     },
     {
       "name": "research_keywords",
-      "title": "Research keywords (bulk)",
-      "description": "Research keyword data (search volume, difficulty, CPC, related ideas) for 1-5 seed keywords in one call. Charges credits per seed (~54 at the default result limit, ~110 at 500, plus ~40 more (~95 at 500) when an obscure seed needs a fallback lookup; flat ~96 for countries served from Google Ads data, where difficulty/intent are unavailable). Returns per-seed results — a single bad seed won't fail the batch.",
+      "title": "Keyword research for several seeds",
+      "description": "Researches 1 to 5 seed keywords in one call and returns, for each seed, related keywords with search volume, difficulty, CPC and intent. Paid per seed: the price rises with resultLimit, a thin seed triggers an extra fallback lookup, and countries served only from Google Ads data cost a flat amount and come without difficulty or intent. A failing seed is reported on its own and does not fail the others.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1020,7 +1020,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "seeds": {
             "minItems": 1,
@@ -1032,20 +1032,20 @@
                 "seed": {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Seed keyword to research."
+                  "description": "The keyword to research."
                 },
                 "locationCode": {
                   "type": "integer",
                   "exclusiveMinimum": 0,
                   "maximum": 9007199254740991,
-                  "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+                  "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
                 },
                 "languageCode": {
                   "type": "string",
-                  "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+                  "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
                 },
                 "locationName": {
-                  "description": "Optional city, county, or region inside the seed's country, for local search volume. Call search_serp_locations first and pass its locationName verbatim. Volume, CPC, and competition then come from Google Ads for that area; keyword ideas, KD, and intent stay national. Adds ~116 credits per seed.",
+                  "description": "Optionally narrow to a city, county or region of the seed's country to get local volumes. First run search_serp_locations and pass the locationName exactly as returned. Volume, CPC and competition then describe that area, while ideas, difficulty and intent stay national. Adds a charge per seed.",
                   "type": "string",
                   "minLength": 1
                 }
@@ -1054,10 +1054,10 @@
                 "seed"
               ]
             },
-            "description": "1-5 seed keywords. Each seed is researched independently and returns related keywords with volume/difficulty/CPC. Bulk-friendly — prefer this over multiple single-seed calls."
+            "description": "One to five seeds. Each is researched on its own and returns related keywords with volume, difficulty and CPC. Prefer one call with several seeds over several single-seed calls."
           },
           "resultLimit": {
-            "description": "Max keywords returned per seed. Defaults to 150. Auto mode blends two sources; duplicate keywords across sources appear once.",
+            "description": "Most keywords to return for each seed; default 150. The default mode blends two data sources and lists a keyword found in both only once.",
             "anyOf": [
               {
                 "type": "number",
@@ -1074,11 +1074,11 @@
             ]
           },
           "includeClickstreamData": {
-            "description": "Refine search volumes with clickstream data, which disaggregates Google Ads' grouped close-variant volumes (plurals/misspellings). DOUBLES the credit cost of each seed. Default false (standard Google-Ads-derived volumes). No effect for countries served from Google Ads data.",
+            "description": "Sharpen volumes with clickstream data, which splits the groups of close variants (plurals, misspellings) that Google Ads reports together. Doubles the price of each seed. Default false. Has no effect where only Google Ads data is available.",
             "type": "boolean"
           },
           "groupKeywords": {
-            "description": "Include similar keyword variants that can share volume, CPC, and competition. Default false returns only core keywords (DataForSEO ignore_synonyms=true). True includes variants (ignore_synonyms=false). This filters keywords, not metric estimates. Do not sum shared volumes. No effect for countries served from Google Ads data.",
+            "description": "Include near-duplicate variants that share one volume, CPC and competition figure. false (default) returns only the main keyword of each group; true returns the variants too. This changes which keywords are listed, not how metrics are estimated, so never add up shared volumes. Has no effect where only Google Ads data is available.",
             "type": "boolean"
           }
         },
@@ -1192,8 +1192,8 @@
     },
     {
       "name": "save_keywords",
-      "title": "Save keywords",
-      "description": "Save keywords to a project's saved-keywords list. Uses no credits — does not call DataForSEO. Idempotent: re-saving an existing keyword is a no-op. If tags are provided, missing tags may be created. By default tags are appended; set tagMode=replace to remove existing tags from these saved keywords before applying the provided tags, which is useful for reorganizing keywords into page/topic clusters. Ask the user for confirmation before applying or replacing tags broadly.",
+      "title": "Store keywords",
+      "description": "Adds keywords to the project's saved list. Free. Saving a keyword that is already saved changes nothing. Tags named in the call are created if missing and, by default, added to the existing ones; tagMode=replace first strips the keyword's current tags, which suits regrouping keywords by page or topic. Ask the user before adding or replacing tags in bulk.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1201,7 +1201,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "keywords": {
             "minItems": 1,
@@ -1211,10 +1211,10 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Keywords to save (1-100)."
+            "description": "Keywords to save, 1 to 100."
           },
           "metrics": {
-            "description": "Optional metrics for the saved keywords. Copy keyword, searchVolume, keywordDifficulty, cpc, competition, and intent from research_keywords or get_keyword_metrics rows. monthlySearches is optional. Match each metric using its keyword field.",
+            "description": "Optional figures to store alongside the keywords: take keyword, searchVolume, keywordDifficulty, cpc, competition and intent from rows of research_keywords or get_keyword_metrics (monthlySearches is optional). Entries are paired with keywords through the keyword field.",
             "maxItems": 100,
             "type": "array",
             "items": {
@@ -1323,7 +1323,7 @@
             }
           },
           "tags": {
-            "description": "Optional tags to attach to every saved keyword. Ask the user for explicit confirmation before using this, especially when saving many keywords or creating new tag names.",
+            "description": "Optional tags to put on every keyword being saved. Get the user's explicit approval first, particularly for large batches or tag names that do not exist yet.",
             "maxItems": 20,
             "type": "array",
             "items": {
@@ -1333,7 +1333,7 @@
             }
           },
           "tagMode": {
-            "description": "How to apply tags. Defaults to append. Use replace to remove existing tags from these saved keywords before applying the provided tags.",
+            "description": "How the tags are applied: append (default) adds to each keyword's existing tags, replace clears them first.",
             "type": "string",
             "enum": [
               "append",
@@ -1344,11 +1344,11 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+            "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -1432,8 +1432,8 @@
     },
     {
       "name": "get_domain_overview",
-      "title": "Get domain overview",
-      "description": "Returns a high-level view of a domain's organic footprint: estimated organic traffic, organic keyword count, backlinks, and referring domains. Use this first for domain research; for the detailed ranked-keyword list, call get_domain_keyword_suggestions next. Charges credits (~100-300 typical). Cached for 12 hours per domain.",
+      "title": "Domain overview",
+      "description": "Summarises a domain's organic footprint: estimated organic traffic, number of ranking keywords, backlinks and referring domains. Start domain research here, then call get_domain_keyword_suggestions for the keyword list itself. Paid per call (typically a few hundred credits); results are kept for 12 hours per domain.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1441,16 +1441,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "domain": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Domain or URL to analyze (e.g. 'example.com')."
+            "description": "Domain or URL to analyse, for example 'example.com'."
           },
           "scope": {
-            "description": "Research scope: 'domain' (hostname without subdomains), 'subdomains' (hostname plus all subdomains), 'subfolder' (path and its children), or 'exact_url' (one page). Defaults to 'subdomains' for root inputs and 'subfolder' when the input has a path. Overview metrics always cover the hostname plus subdomains; narrower scopes are labeled accordingly — use get_ranked_keywords with a scope for scoped keyword data.",
+            "description": "Which part of the site to analyse: 'domain' (the host alone), 'subdomains' (the host and every subdomain), 'subfolder' (a path and everything below it) or 'exact_url' (a single page). A bare domain defaults to 'subdomains'; an input with a path defaults to 'subfolder'. The overview figures always cover the host plus subdomains and are labelled when a narrower scope was asked for; use get_ranked_keywords with a scope for keyword data limited to that scope.",
             "type": "string",
             "enum": [
               "exact_url",
@@ -1460,18 +1460,18 @@
             ]
           },
           "includeSubdomains": {
-            "description": "Deprecated: use scope ('subdomains' or 'domain') instead.",
+            "description": "Deprecated. Use scope ('subdomains' or 'domain') instead.",
             "type": "boolean"
           },
           "locationCode": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+            "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -1570,8 +1570,8 @@
     },
     {
       "name": "get_domain_keyword_suggestions",
-      "title": "Get domain keyword opportunities",
-      "description": "Returns the organic keywords a domain ranks for, including position and available metrics. Use after get_domain_overview when you want the detailed keyword opportunity list for a competitor or reference domain. Charges credits (~100-300 typical). Cached for 12 hours.",
+      "title": "Domain keyword list",
+      "description": "Lists the organic keywords a domain ranks for, with positions and the metrics available. Use it after get_domain_overview to see the detailed keyword list of a competitor or reference site. Paid per call (typically a few hundred credits); results are kept for 12 hours.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1579,16 +1579,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "domain": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Competitor or reference domain or URL to extract keywords from."
+            "description": "Competitor or reference domain or URL whose keywords you want."
           },
           "scope": {
-            "description": "Research scope: 'domain' (hostname without subdomains), 'subdomains' (hostname plus all subdomains), 'subfolder' (path and its children), or 'exact_url' (one page). Defaults to 'subdomains' for root inputs and 'subfolder' when the input has a path.",
+            "description": "Which part of the site to use: 'domain' (the host alone), 'subdomains' (the host and every subdomain), 'subfolder' (a path and everything below it) or 'exact_url' (a single page). A bare domain defaults to 'subdomains'; an input with a path defaults to 'subfolder'.",
             "type": "string",
             "enum": [
               "exact_url",
@@ -1601,11 +1601,11 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+            "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -1672,8 +1672,8 @@
     },
     {
       "name": "get_backlinks_overview",
-      "title": "Get backlinks overview",
-      "description": "Returns a backlinks profile summary (total backlinks, referring domains, top referring domains). Charges credits (~50 typical for a domain, ~25 for a single page). Note: bare domains default to scope 'subdomains'; pass scope 'domain' to exclude subdomains from the totals. Targets with a path default to 'subfolder', whose counts come from filtered backlink totals (no rank/trends/referring-domain breakdown). Trend data always includes subdomains (provider limitation). Self-hosted deployments need the Backlinks API enabled on their DataForSEO account.",
+      "title": "Backlink summary",
+      "description": "Summarises a backlink profile: total backlinks, referring domains and the top referring domains. Paid per call (a page costs less than a domain). A bare domain defaults to scope 'subdomains'; pass 'domain' to leave subdomains out of the totals. A target with a path defaults to 'subfolder', whose counts are derived from filtered backlink totals and therefore carry no rank, trend or referring-domain breakdown. Trend history always includes subdomains, a limit of the data provider. The DataForSEO account must have the Backlinks API enabled.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1681,15 +1681,15 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "target": {
             "type": "string",
             "minLength": 1,
-            "description": "Domain or URL to analyze (e.g. 'example.com' or 'https://example.com/blog')."
+            "description": "Domain or URL to analyse, such as 'example.com' or 'https://example.com/blog'."
           },
           "scope": {
-            "description": "Research scope: 'domain' (hostname without subdomains), 'subdomains' (hostname plus all subdomains), 'subfolder' (path and its children), or 'exact_url' (one page). Defaults to 'subdomains' for root inputs and 'subfolder' when the input has a path. 'page' is a deprecated alias of 'exact_url'. Subfolder counts are computed from filtered backlink totals; rank, trends, and the referring-domains breakdown are unavailable for subfolders.",
+            "description": "Which part of the site to analyse: 'domain' (the host alone), 'subdomains' (the host and every subdomain), 'subfolder' (a path and everything below it) or 'exact_url' (a single page). A bare domain defaults to 'subdomains'; an input with a path defaults to 'subfolder'. 'page' is an old alias for 'exact_url'. Subfolder counts come from filtered totals, so rank, trends and the referring-domain breakdown are not available for them.",
             "type": "string",
             "enum": [
               "exact_url",
@@ -1700,7 +1700,7 @@
             ]
           },
           "hideSpam": {
-            "description": "Filter out spammy referring domains. Defaults to true.",
+            "description": "Leave out referring domains that look like spam. Default true.",
             "type": "boolean"
           }
         },
@@ -1775,8 +1775,8 @@
     },
     {
       "name": "get_backlinks_profile",
-      "title": "Get backlinks profile",
-      "description": "Returns one bounded page of detailed backlink rows for a domain or page: linking URLs, target URLs, anchors, dofollow/nofollow, authority/spam signals, and lost/broken status. Supports filters, sorting, one_per_domain/as_is mode, and pagination. Charges credits (~30 per page typical). Self-hosted deployments need the Backlinks API enabled on their DataForSEO account.",
+      "title": "Backlink rows",
+      "description": "Returns one page of individual backlinks for a domain or page: the linking URL, the page it points to, anchor text, dofollow or nofollow, authority and spam signals, and whether the link is lost or broken. Supports filters, sorting, a one-link-per-domain mode and paging. Paid per page of results. The DataForSEO account must have the Backlinks API enabled.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1784,16 +1784,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "target": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Domain or URL to analyze (e.g. 'example.com' or 'https://example.com/blog')."
+            "description": "Domain or URL to analyse, such as 'example.com' or 'https://example.com/blog'."
           },
           "scope": {
-            "description": "Research scope: 'domain' (hostname without subdomains), 'subdomains' (hostname plus all subdomains), 'subfolder' (path and its children), or 'exact_url' (one page). Defaults to 'subdomains' for root inputs and 'subfolder' when the input has a path. 'page' is a deprecated alias of 'exact_url'. Subfolder counts are computed from filtered backlink totals; rank, trends, and the referring-domains breakdown are unavailable for subfolders.",
+            "description": "Which part of the site to analyse: 'domain' (the host alone), 'subdomains' (the host and every subdomain), 'subfolder' (a path and everything below it) or 'exact_url' (a single page). A bare domain defaults to 'subdomains'; an input with a path defaults to 'subfolder'. 'page' is an old alias for 'exact_url'. Subfolder counts come from filtered totals, so rank, trends and the referring-domain breakdown are not available for them.",
             "type": "string",
             "enum": [
               "exact_url",
@@ -1805,21 +1805,21 @@
           },
           "page": {
             "default": 1,
-            "description": "1-indexed results page. Defaults to 1.",
+            "description": "Page number, starting at 1. Default 1.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "pageSize": {
             "default": 50,
-            "description": "Rows per page. Allowed values: 50, 100, or 200.",
+            "description": "Rows per page: 50, 100 or 200.",
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
           "sortField": {
             "default": "firstSeen",
-            "description": "Backlink row sort field.",
+            "description": "Field to sort the backlink rows by.",
             "type": "string",
             "enum": [
               "rank",
@@ -1830,7 +1830,7 @@
           },
           "sortOrder": {
             "default": "desc",
-            "description": "Sort direction.",
+            "description": "Ascending or descending order.",
             "type": "string",
             "enum": [
               "asc",
@@ -1838,7 +1838,7 @@
             ]
           },
           "filters": {
-            "description": "Backlink row filters: include/exclude source URL terms, authority/spam ranges, dofollow/nofollow, lost/broken visibility, or exact domainFrom.",
+            "description": "Narrow the backlink rows: terms the source URL must or must not contain, authority and spam ranges, dofollow or nofollow, whether lost or broken links are shown, or one exact referring domain (domainFrom).",
             "type": "object",
             "properties": {
               "include": {
@@ -1928,7 +1928,7 @@
           },
           "mode": {
             "default": "one_per_domain",
-            "description": "DataForSEO backlink grouping: one_per_domain returns each referring domain's strongest link; as_is returns individual backlink rows.",
+            "description": "How links are grouped: one_per_domain keeps only the strongest link of each referring domain, as_is returns every backlink row.",
             "type": "string",
             "enum": [
               "one_per_domain",
@@ -1936,7 +1936,7 @@
             ]
           },
           "hideSpam": {
-            "description": "Hide backlinks with Spam scores of 40 or higher. Defaults to true. Unknown scores remain visible. This is a heuristic, not a judgment about a link. Set false to inspect all matching links. True leaves six user filter conditions (two for subfolders); false allows eight (four for subfolders). Each include/exclude term and numeric bound counts separately.",
+            "description": "Hide links whose spam score is 40 or more (default true). Links with an unknown score stay visible. The score is a rough signal, not a verdict on a link; set false to see every matching link. The provider caps filter conditions: with this on you may use six (two for subfolders), with it off eight (four for subfolders), and every include or exclude term and every numeric bound counts as one.",
             "type": "boolean"
           }
         },
@@ -2041,8 +2041,8 @@
     },
     {
       "name": "get_serp_results",
-      "title": "Get Google SERP results",
-      "description": "Fetch live Google organic search results for 1-10 keywords. Use this to inspect who ranks for a query, verify competitors, compare SERPs across keywords, or gather source URLs before content planning. Returns the top `depth` result rows per keyword (default 20). Charges credits per keyword: ~5 each at the default depth 20, and each additional 10 of depth adds ~2.5. Does not save results to OpenSEO. Per-keyword errors don't fail the batch.",
+      "title": "Live Google results",
+      "description": "Fetches live Google organic results for 1 to 10 keywords, so you can see who ranks for a query, check competitors, compare result pages or collect source URLs before planning content. Returns the first `depth` rows for each keyword (default 20). Paid per keyword, and the price grows with depth. Nothing is stored in closeseo. A keyword that fails is reported separately and the rest still return.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2050,7 +2050,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "queries": {
             "minItems": 1,
@@ -2062,20 +2062,20 @@
                 "keyword": {
                   "type": "string",
                   "minLength": 1,
-                  "description": "Search query to fetch the SERP for."
+                  "description": "The search query to fetch results for."
                 },
                 "locationCode": {
                   "type": "integer",
                   "exclusiveMinimum": 0,
                   "maximum": 9007199254740991,
-                  "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+                  "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
                 },
                 "languageCode": {
                   "type": "string",
-                  "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+                  "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
                 },
                 "locationName": {
-                  "description": "Optional city, county, or region inside the query's country, for a local SERP. Call search_serp_locations first and pass its locationName verbatim. Same price as a national SERP.",
+                  "description": "Optional city, county or region within the query's country, to get a local result page. Run search_serp_locations first and pass its locationName unchanged. Costs the same as a national query.",
                   "type": "string",
                   "minLength": 1
                 }
@@ -2084,10 +2084,10 @@
                 "keyword"
               ]
             },
-            "description": "1-10 queries. Bulk-friendly — prefer this over multiple single-query calls."
+            "description": "One to ten queries. Prefer one call with several queries over many single-query calls."
           },
           "depth": {
-            "description": "How many SERP rows to crawl per keyword — a multiple of 10 from 10 to 100, default 20. Google has no offset, so a deeper crawl re-fetches the top too: each additional 10 adds ~2.5 credits per keyword. Only raise it when you need ranks past the top 20.",
+            "description": "Number of result rows to read for each keyword: 10, 20, ... up to 100, default 20. Google offers no offset, so reading deeper also re-reads the top rows and each extra 10 adds to the price. Increase it only if you need positions past the 20th.",
             "type": "integer",
             "minimum": 10,
             "maximum": 100,
@@ -2260,8 +2260,8 @@
     },
     {
       "name": "search_serp_locations",
-      "title": "Search SERP locations",
-      "description": "Find the exact DataForSEO location name of a city, county, or region. Returns up to 50 matches; pass the chosen `locationName` verbatim to create_rank_tracker for local rank tracking, or to research_keywords for local search volume. Uses no credits.",
+      "title": "Find SERP locations",
+      "description": "Finds the exact DataForSEO name for a city, county or region (up to 50 results). Send the chosen `locationName` untouched to create_rank_tracker for tracking in that place, or to research_keywords for local volumes. Free.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2270,12 +2270,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
-            "description": "Place name, e.g. \"Catonsville\" or \"Portland OR\"."
+            "description": "Place name, for example \"Catonsville\" or \"Portland OR\"."
           },
           "countryCode": {
             "type": "string",
             "pattern": "^[a-zA-Z]{2}$",
-            "description": "Two-letter ISO country code, e.g. \"us\"."
+            "description": "Two-letter ISO country code, for example \"us\"."
           }
         },
         "required": [
@@ -2345,8 +2345,8 @@
     },
     {
       "name": "create_rank_tracker",
-      "title": "Create rank tracker",
-      "description": "Create a rank tracking configuration for a project. Creating an empty tracker uses no credits and starts no check, but daily, weekly, and monthly trackers will spend credits after keywords are added. The domain defaults to the project's domain; market defaults to the project's market; devices default to mobile, search depth to 40, and schedule to manual. Use estimate_rank_tracker_cost before adding keywords to a scheduled tracker or starting a live run. Call get_rank_tracker first to avoid duplicates. For local (city-level) tracking, call search_serp_locations first and pass its locationName verbatim.",
+      "title": "Set up rank tracker",
+      "description": "Sets up a rank tracker for a project. A tracker with no keywords costs nothing and checks nothing, but once keywords are added a daily, weekly or monthly one spends credits on each run. Defaults: the project's domain and market, mobile devices, depth 40, manual schedule. Price it with estimate_rank_tracker_cost before adding keywords to a scheduled tracker or launching a live run, and look at get_rank_tracker first to avoid a duplicate. For tracking at city level, run search_serp_locations and send its locationName unchanged.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2354,10 +2354,10 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "domain": {
-            "description": "Domain to track. Defaults to the project's domain. Accepts a hostname or URL and stores the normalized hostname.",
+            "description": "The domain to track, by default the project's own. A hostname or URL is accepted; only the plain hostname is stored.",
             "type": "string",
             "minLength": 1,
             "maxLength": 253
@@ -2366,20 +2366,20 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+            "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           },
           "locationName": {
-            "description": "Exact DataForSEO location name for local rank tracking, e.g. \"Catonsville,Maryland,United States\". Must come from search_serp_locations; free-form names like \"Catonsville, MD\" are rejected.",
+            "description": "Exact DataForSEO location name for city-level tracking, such as \"Catonsville,Maryland,United States\". It must come from search_serp_locations; free-form text like \"Catonsville, MD\" is rejected.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
           },
           "devices": {
-            "description": "Devices to track. Defaults to mobile.",
+            "description": "Which devices to check. Default mobile.",
             "type": "string",
             "enum": [
               "desktop",
@@ -2388,14 +2388,14 @@
             ]
           },
           "serpDepth": {
-            "description": "Number of Google results to inspect. Defaults to 40.",
+            "description": "How many Google results to look through. Default 40.",
             "type": "integer",
             "minimum": 10,
             "maximum": 100,
             "multipleOf": 10
           },
           "scheduleInterval": {
-            "description": "Check schedule. Defaults to manual so creating a tracker cannot cause future credit spend. Scheduled checks may use credits later.",
+            "description": "How often to check. Default manual, so creating a tracker can never cause later spending; scheduled checks do use credits.",
             "type": "string",
             "enum": [
               "manual",
@@ -2405,11 +2405,11 @@
             ]
           },
           "scheduleTime": {
-            "description": "When scheduled checks run. Pass the user's timeZone with it so their local time is converted for you; the schedule is then fixed in UTC and shifts an hour when their clocks change. Omit it unless the user asks for a specific time: the default spreads checks across quiet hours. Daily runs at this time every day, weekly on the given weekday, monthly at this time on the last day of the month. Checks start within about 15 minutes of the chosen time. Not valid with a manual schedule.",
+            "description": "When scheduled checks run. Send the user's timeZone with it and the local time is converted for you; the result is fixed in UTC and moves by an hour when clocks change. Leave it out unless the user wants a particular time, because the default spreads checks over quiet hours. Daily checks run at this time every day, weekly checks on the chosen weekday, monthly checks on the last day of the month. A check begins shortly after the chosen time. Not allowed with a manual schedule.",
             "type": "object",
             "properties": {
               "weekday": {
-                "description": "Day of week, 0 = Sunday. Required for weekly schedules, ignored by the others.",
+                "description": "Day of the week, 0 for Sunday. Needed for weekly schedules and ignored otherwise.",
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 6
@@ -2418,16 +2418,16 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 23,
-                "description": "Hour, 0-23."
+                "description": "Hour from 0 to 23."
               },
               "minute": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 59,
-                "description": "Minute, 0-59."
+                "description": "Minute from 0 to 59."
               },
               "timeZone": {
-                "description": "IANA timezone the weekday, hour, and minute are in, e.g. \"America/New_York\". Defaults to UTC.",
+                "description": "IANA time zone that the weekday, hour and minute refer to, such as \"America/New_York\". Default UTC.",
                 "type": "string"
               }
             },
@@ -2489,8 +2489,8 @@
     },
     {
       "name": "get_rank_tracker",
-      "title": "Get rank tracker",
-      "description": "Read-only access to rank tracker configs and their latest results. With `trackerId`, returns config + latest snapshot per keyword, including `trackingKeywordId` for removals. Without it, lists all trackers in the project. Uses no credits. Use create_rank_tracker when no tracker exists; then use add_rank_tracking_keywords, remove_rank_tracking_keywords, estimate_rank_tracker_cost, or run_rank_tracker to manage it. `lastCheckedAt` shows position freshness.",
+      "title": "View rank trackers",
+      "description": "Read-only view of rank trackers. Given a `trackerId` it returns the tracker's settings and the newest result for every keyword, including the `trackingKeywordId` needed to remove one; without it, it lists the project's trackers. Free. If none exists, create one with create_rank_tracker, then manage it with add_rank_tracking_keywords, remove_rank_tracking_keywords, estimate_rank_tracker_cost and run_rank_tracker. `lastCheckedAt` tells you how fresh the positions are.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2498,10 +2498,10 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "trackerId": {
-            "description": "Rank tracker config ID. If omitted, lists all rank trackers in the project.",
+            "description": "ID of one rank tracker. Leave it out to list all trackers of the project.",
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -2640,8 +2640,8 @@
     },
     {
       "name": "add_rank_tracking_keywords",
-      "title": "Add rank tracking keywords",
-      "description": "Add keywords to an existing rank tracker. The mutation itself uses no credits and does not start a check or fetch metrics, but scheduled trackers will spend credits on future recurring public Google searches. For a scheduled tracker, call estimate_rank_tracker_cost with additionalKeywords, show the recurring estimate and live-fallback caveat to the user, and pass the approved nominal per-check estimate as maxEstimatedScheduledCheckCredits. This approval is not a runtime spending cap: rejected, failed, or timed-out queued tasks may use additional separately billed live fallback. Existing and repeated keywords are skipped, and `added` is the number actually inserted.",
+      "title": "Add keywords to rank tracker",
+      "description": "Adds keywords to an existing tracker. The edit is free and neither checks positions nor fetches metrics, but on a scheduled tracker every later recurring check spends credits. For a scheduled tracker, first call estimate_rank_tracker_cost with additionalKeywords, tell the user the recurring cost and the live-fallback caveat, and send the figure they approved as maxEstimatedScheduledCheckCredits. That figure records approval only and is not a spending limit: queued tasks that are rejected, fail or time out can fall back to separately billed live checks. Keywords that are already tracked, or repeated in the request, are skipped; `added` counts what was inserted.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2649,13 +2649,13 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "trackerId": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Rank tracker ID from get_rank_tracker."
+            "description": "ID of the tracker, from get_rank_tracker."
           },
           "keywords": {
             "minItems": 1,
@@ -2666,14 +2666,14 @@
               "minLength": 1,
               "maxLength": 200
             },
-            "description": "Keywords to track. Existing and repeated keywords are skipped."
+            "description": "Keywords to start tracking. Ones already tracked, or repeated, are skipped."
           },
           "matchCase": {
-            "description": "Track the keywords exactly as typed instead of lowercasing them. Defaults to false. Use for brand names where Google's results differ by capitalization; a cased keyword is tracked and billed separately from its lowercase form.",
+            "description": "Keep each keyword exactly as typed instead of lowercasing it (default false). Useful for brand names whose results change with capitalisation; a cased keyword is tracked, and charged, separately from its lowercase form.",
             "type": "boolean"
           },
           "maxEstimatedScheduledCheckCredits": {
-            "description": "Nominal queued credits per scheduled check that the user approved after seeing estimate_rank_tracker_cost with additionalKeywords. Required for scheduled trackers. This is an estimate approval, not a runtime cap; live fallback may add separately billed credits.",
+            "description": "Credits per scheduled check, as estimated by estimate_rank_tracker_cost with additionalKeywords, that the user has approved. Required for scheduled trackers. It records approval only and is not a cap: a live fallback can add separately billed credits.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
@@ -2779,8 +2779,8 @@
     },
     {
       "name": "remove_rank_tracking_keywords",
-      "title": "Remove rank tracking keywords",
-      "description": "Stop tracking keywords by their trackingKeywordId. Uses no credits and preserves historical snapshots. Missing, stale, foreign, and repeated IDs are ignored; `removed` is the number actually deleted from this tracker.",
+      "title": "Drop rank tracker keywords",
+      "description": "Stops tracking the given keywords by trackingKeywordId. Free; past results are kept. IDs that are unknown, outdated, belong to another tracker or repeat are skipped, and `removed` counts the keywords really deleted from this tracker.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2788,13 +2788,13 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "trackerId": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Rank tracker ID from get_rank_tracker."
+            "description": "ID of the tracker, from get_rank_tracker."
           },
           "keywordIds": {
             "minItems": 1,
@@ -2805,7 +2805,7 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
-            "description": "Tracking keyword IDs to remove. Use `trackingKeywordId` values returned by get_rank_tracker."
+            "description": "IDs of the tracked keywords to remove: the `trackingKeywordId` values from get_rank_tracker."
           }
         },
         "required": [
@@ -2871,8 +2871,8 @@
     },
     {
       "name": "estimate_rank_tracker_cost",
-      "title": "Estimate rank tracker cost",
-      "description": "Estimate rank tracker cost without spending credits or starting a check. The live estimate covers one explicit run_rank_tracker check. For a scheduled tracker, the response also includes nominal queued per-check and approximate monthly recurring cost. Pass additionalKeywords before adding keywords to project the post-add cost. Scheduled estimates are not runtime caps; rejected, failed, or timed-out queued tasks may use additional separately billed live fallback.",
+      "title": "Price a rank tracker",
+      "description": "Prices a rank tracker without spending anything or starting a check. The live figure is the cost of one run_rank_tracker check. For a scheduled tracker the answer also gives the queued cost of one check and a rough monthly total. Pass additionalKeywords to see the cost after adding them. Scheduled figures are estimates, not limits: queued tasks that are rejected, fail or time out may fall back to separately billed live checks.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2880,22 +2880,22 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "trackerId": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Rank tracker ID from get_rank_tracker."
+            "description": "ID of the tracker, from get_rank_tracker."
           },
           "additionalKeywordCount": {
-            "description": "Number of keywords you plan to add, priced as plain keywords. Prefer additionalKeywords when you know them.",
+            "description": "How many keywords you intend to add, priced as ordinary keywords. Use additionalKeywords instead when you know the keywords.",
             "type": "integer",
             "minimum": 0,
             "maximum": 1000
           },
           "additionalKeywords": {
-            "description": "Keywords you plan to add. Include these before adding to a scheduled tracker so the response projects its recurring per-check and monthly cost; keywords with search operators such as site: cost 5x. Overrides additionalKeywordCount.",
+            "description": "Keywords you plan to add. Provide them before adding to a scheduled tracker to see its price per check and per month; a keyword with a search operator such as site: is charged five times. Takes priority over additionalKeywordCount.",
             "maxItems": 1000,
             "type": "array",
             "items": {
@@ -3020,8 +3020,8 @@
     },
     {
       "name": "run_rank_tracker",
-      "title": "Run rank tracker",
-      "description": "Start an explicit live rank check for every keyword and configured device. This spends credits: call estimate_rank_tracker_cost, show the estimate to the user, and pass the approved credit amount as maxCostCredits. A fresh estimate above that ceiling is rejected. Hosted accounts require a paid plan, while self-hosted deployments are not plan-gated. If a run is already in progress, its blocking run ID is reported without starting or charging another check. The schedule is unchanged.",
+      "title": "Check rankings now",
+      "description": "Starts a live position check of every keyword on every configured device. It spends credits, so call estimate_rank_tracker_cost first, show the user the figure and pass what they approved as maxCostCredits; a fresh estimate above it is refused. If a check is already running, its run ID is returned and nothing new is started or billed. The schedule is not changed.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3029,19 +3029,19 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "trackerId": {
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "description": "Rank tracker ID from get_rank_tracker."
+            "description": "ID of the tracker, from get_rank_tracker."
           },
           "maxCostCredits": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "Maximum credits the user approved after seeing estimate_rank_tracker_cost. The run is rejected if its fresh estimate is higher."
+            "description": "Highest credit amount the user accepted after seeing estimate_rank_tracker_cost. If a new estimate comes out higher, the run is refused."
           }
         },
         "required": [
@@ -3109,8 +3109,8 @@
     },
     {
       "name": "get_ranked_keywords",
-      "title": "Get ranked keywords",
-      "description": "Returns market-specific keyword, URL, rank, search volume, CPC, intent, and traffic rows for a domain or page. Accepts country-level DataForSEO Labs location/language codes. Use this for strategy evidence; use get_domain_overview for aggregate domain footprint. Charges credits.",
+      "title": "Keywords a site ranks for",
+      "description": "Lists the keywords a domain or page ranks for in one market, with URL, position, search volume, CPC, intent and traffic estimate. Takes country-level DataForSEO Labs location and language codes. Use it as evidence for strategy; use get_domain_overview for the overall footprint. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3118,16 +3118,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "target": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Domain (no protocol/www) or absolute page URL to list ranked keywords for."
+            "description": "Domain (no protocol or www) or full page URL whose ranked keywords you want."
           },
           "scope": {
-            "description": "Research scope: 'domain' (hostname without subdomains), 'subdomains' (hostname plus all subdomains), 'subfolder' (path and its children), or 'exact_url' (one page). Defaults to 'subdomains' for root inputs and 'subfolder' when the input has a path.",
+            "description": "Which part of the site to use: 'domain' (the host alone), 'subdomains' (the host and every subdomain), 'subfolder' (a path and everything below it) or 'exact_url' (a single page). A bare domain defaults to 'subdomains'; an input with a path defaults to 'subfolder'.",
             "type": "string",
             "enum": [
               "exact_url",
@@ -3137,11 +3137,11 @@
             ]
           },
           "market": {
-            "description": "Legacy US selector. Prefer locationCode/languageCode for any Labs market. Explicit locationCode takes precedence; otherwise omitted = the project's default market.",
+            "description": "Old selector limited to the US. Prefer locationCode and languageCode for any Labs market. A given locationCode wins; with neither, the project's market is used.",
             "type": "object",
             "properties": {
               "country": {
-                "description": "Country selector. Only the United States can be selected explicitly.",
+                "description": "Country choice. Only the United States can be named here.",
                 "type": "string",
                 "enum": [
                   "US",
@@ -3153,17 +3153,17 @@
             }
           },
           "locationCode": {
-            "description": "Country-level DataForSEO Labs location code. Defaults to the project's market; takes precedence over the legacy market object.",
+            "description": "DataForSEO Labs location code at country level. Defaults to the project's market and takes priority over the old market object.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "languageCode": {
-            "description": "Language for locationCode. Defaults to that location's primary language when locationCode overrides the project market.",
+            "description": "Language to use with locationCode. When locationCode differs from the project's market it defaults to that location's main language.",
             "type": "string"
           },
           "resultTypes": {
-            "description": "SERP result types to include. Defaults to organic and paid.",
+            "description": "Which SERP result types to include. Default: organic and paid.",
             "minItems": 1,
             "maxItems": 5,
             "type": "array",
@@ -3179,23 +3179,23 @@
             }
           },
           "includeSubdomains": {
-            "description": "Deprecated: use scope ('subdomains' or 'domain') instead.",
+            "description": "Deprecated. Use scope ('subdomains' or 'domain') instead.",
             "type": "boolean"
           },
           "minSearchVolume": {
-            "description": "Only return keywords with at least this monthly search volume.",
+            "description": "Only keep keywords with at least this monthly search volume.",
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
           "maxRank": {
-            "description": "Only return keywords ranking at this position or better.",
+            "description": "Only keep keywords ranking at this position or higher (a smaller number is better).",
             "type": "integer",
             "minimum": 1,
             "maximum": 100
           },
           "excludeBrandTerms": {
-            "description": "Exclude keywords containing any of these brand terms.",
+            "description": "Drop keywords that contain any of these brand terms.",
             "minItems": 1,
             "maxItems": 10,
             "type": "array",
@@ -3206,7 +3206,7 @@
             }
           },
           "sortBy": {
-            "description": "Sort order for returned rows. Defaults to search_volume.",
+            "description": "How to order the rows. Default search_volume.",
             "type": "string",
             "enum": [
               "rank",
@@ -3216,13 +3216,13 @@
             ]
           },
           "limit": {
-            "description": "Maximum rows to return (1-100). Defaults to 50.",
+            "description": "Most rows to return, 1 to 100. Default 50.",
             "type": "integer",
             "minimum": 1,
             "maximum": 100
           },
           "offset": {
-            "description": "Rows to skip for pagination.",
+            "description": "How many rows to skip, for paging.",
             "type": "integer",
             "minimum": 0,
             "maximum": 1000
@@ -3303,8 +3303,8 @@
     },
     {
       "name": "find_serp_competitors",
-      "title": "Find SERP competitors",
-      "description": "Compares domains competing in Google results for a supplied keyword set in a country-level DataForSEO Labs market. Accepts location/language codes; not radius-based local SEO. Charges credits.",
+      "title": "Find competing domains",
+      "description": "Compares the domains that compete for a set of keywords in Google results, in a country-level DataForSEO Labs market. Takes location and language codes; it is not a radius-based local SEO tool. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3312,7 +3312,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "keywords": {
             "minItems": 1,
@@ -3323,14 +3323,14 @@
               "minLength": 1,
               "maxLength": 120
             },
-            "description": "Keywords whose SERPs are compared (1-100)."
+            "description": "Keywords whose result pages are compared, 1 to 100."
           },
           "market": {
-            "description": "Legacy US selector. Prefer locationCode/languageCode for any Labs market. Explicit locationCode takes precedence; otherwise omitted = the project's default market.",
+            "description": "Old selector limited to the US. Prefer locationCode and languageCode for any Labs market. A given locationCode wins; with neither, the project's market is used.",
             "type": "object",
             "properties": {
               "country": {
-                "description": "Country selector. Only the United States can be selected explicitly.",
+                "description": "Country choice. Only the United States can be named here.",
                 "type": "string",
                 "enum": [
                   "US",
@@ -3342,17 +3342,17 @@
             }
           },
           "locationCode": {
-            "description": "Country-level DataForSEO Labs location code. Defaults to the project's market; takes precedence over the legacy market object.",
+            "description": "DataForSEO Labs location code at country level. Defaults to the project's market and takes priority over the old market object.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "languageCode": {
-            "description": "Language for locationCode. Defaults to that location's primary language when locationCode overrides the project market.",
+            "description": "Language to use with locationCode. When locationCode differs from the project's market it defaults to that location's main language.",
             "type": "string"
           },
           "resultTypes": {
-            "description": "SERP result types to include. Defaults to organic and local_pack.",
+            "description": "Which SERP result types to include. Default: organic and local_pack.",
             "minItems": 1,
             "maxItems": 4,
             "type": "array",
@@ -3367,7 +3367,7 @@
             }
           },
           "excludeDomains": {
-            "description": "Domains to exclude from results (e.g. the user's own site).",
+            "description": "Domains to leave out, for example the user's own site.",
             "minItems": 1,
             "maxItems": 50,
             "type": "array",
@@ -3378,11 +3378,11 @@
             }
           },
           "includeSubdomains": {
-            "description": "Count subdomains as part of the same competitor domain.",
+            "description": "Treat subdomains as part of the same competitor domain.",
             "type": "boolean"
           },
           "sortBy": {
-            "description": "Sort order for returned competitors. Defaults to visibility.",
+            "description": "How to order the competitors. Default visibility.",
             "type": "string",
             "enum": [
               "visibility",
@@ -3392,13 +3392,13 @@
             ]
           },
           "limit": {
-            "description": "Maximum competitors to return (1-100). Defaults to 50.",
+            "description": "Most competitors to return, 1 to 100. Default 50.",
             "type": "integer",
             "minimum": 1,
             "maximum": 100
           },
           "offset": {
-            "description": "Rows to skip for pagination.",
+            "description": "How many rows to skip, for paging.",
             "type": "integer",
             "minimum": 0,
             "maximum": 1000
@@ -3456,8 +3456,8 @@
     },
     {
       "name": "search_local_businesses",
-      "title": "Search local businesses",
-      "description": "Searches local business listings near a coordinate, with optional rating, review-count, and claimed-status filters. Use this to find local business candidates, nearby competitors, or unclaimed listings; it does not run Maps rank checks or Q&A. Returns a compact row per business (identity, contact, rating, claim status); use get_business_profile for one business's full profile. Charges credits.",
+      "title": "Find local businesses",
+      "description": "Finds local business listings around a coordinate, optionally filtered by rating, number of reviews and whether the listing is claimed. Use it to discover local competitors, candidates or unclaimed listings. It does not check Maps rankings or fetch Q&A. Each row is brief (identity, contact, rating, claim status); get_business_profile gives one business in full. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3465,10 +3465,10 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "query": {
-            "description": "Business name or title text to match.",
+            "description": "Business name, or part of it, to match.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
@@ -3480,19 +3480,19 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude of the search center."
+                "description": "Latitude of the point to search around."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude of the search center."
+                "description": "Longitude of the point to search around."
               },
               "radiusKm": {
                 "type": "number",
                 "minimum": 1,
                 "maximum": 100000,
-                "description": "Search radius around the center, in whole kilometers (fractions are rounded)."
+                "description": "Search radius in whole kilometres; fractions are rounded."
               }
             },
             "required": [
@@ -3500,10 +3500,10 @@
               "longitude",
               "radiusKm"
             ],
-            "description": "Coordinate and radius to search around."
+            "description": "The point and radius to search around."
           },
           "categories": {
-            "description": "Business categories to filter by (e.g. 'pizza_restaurant').",
+            "description": "Business categories to filter by, for example 'pizza_restaurant'.",
             "minItems": 1,
             "maxItems": 10,
             "type": "array",
@@ -3514,23 +3514,23 @@
             }
           },
           "minRating": {
-            "description": "Only return businesses rated at least this (1-5).",
+            "description": "Only return businesses rated at least this, 1 to 5.",
             "type": "number",
             "minimum": 1,
             "maximum": 5
           },
           "minReviews": {
-            "description": "Only return businesses with at least this many Google reviews.",
+            "description": "Minimum number of Google reviews a business must have.",
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
           "isClaimed": {
-            "description": "Filter by whether the listing is claimed by its owner. false surfaces unclaimed listings (outreach prospects).",
+            "description": "Filter on whether the owner has claimed the listing. false shows unclaimed listings, which make outreach prospects.",
             "type": "boolean"
           },
           "sortBy": {
-            "description": "Sort order for returned rows. Defaults to relevance.",
+            "description": "How to order the rows. Default relevance.",
             "type": "string",
             "enum": [
               "relevance",
@@ -3539,13 +3539,13 @@
             ]
           },
           "limit": {
-            "description": "Maximum businesses to return (1-50). Defaults to 20.",
+            "description": "Most businesses to return, 1 to 50. Default 20.",
             "type": "integer",
             "minimum": 1,
             "maximum": 50
           },
           "offset": {
-            "description": "Rows to skip for pagination.",
+            "description": "How many rows to skip, for paging.",
             "type": "integer",
             "minimum": 0,
             "maximum": 1000
@@ -3603,8 +3603,8 @@
     },
     {
       "name": "get_local_serp_results",
-      "title": "Get local SERP results",
-      "description": "Fetches one Google Maps or Local Finder SERP near a coordinate. Returns trimmed provider rows (identity, rank, rating, categories, hours) with rank fields intact; callers decide how to match a target business. Charges credits.",
+      "title": "Maps and Local Finder results",
+      "description": "Fetches a single Google Maps or Local Finder result page as seen from a coordinate. Returns slimmed provider rows (identity, rank, rating, categories, hours) with the rank fields untouched, so the caller decides how to recognise a target business. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3612,13 +3612,13 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "keyword": {
             "type": "string",
             "minLength": 1,
             "maxLength": 120,
-            "description": "Search query to run on Google Maps or Local Finder."
+            "description": "The query to run in Google Maps or Local Finder."
           },
           "near": {
             "type": "object",
@@ -3627,16 +3627,16 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude the SERP is fetched from."
+                "description": "Latitude the result page is fetched from."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude the SERP is fetched from."
+                "description": "Longitude the result page is fetched from."
               },
               "zoom": {
-                "description": "Map zoom level (4-18). Higher zoom narrows the local area.",
+                "description": "Map zoom from 4 to 18; a higher zoom covers a smaller area.",
                 "type": "integer",
                 "minimum": 4,
                 "maximum": 18
@@ -3646,10 +3646,10 @@
               "latitude",
               "longitude"
             ],
-            "description": "Coordinate (and optional map zoom) the SERP is fetched from."
+            "description": "The coordinate, with an optional map zoom, the result page is fetched from."
           },
           "searchType": {
-            "description": "Which local SERP to fetch. Defaults to maps.",
+            "description": "Which local result page to fetch. Default maps.",
             "type": "string",
             "enum": [
               "maps",
@@ -3657,7 +3657,7 @@
             ]
           },
           "device": {
-            "description": "Device the SERP is rendered for. Defaults to mobile, matching get_local_rank_grid.",
+            "description": "Device the page is rendered for. Default mobile, the same as get_local_rank_grid.",
             "type": "string",
             "enum": [
               "desktop",
@@ -3665,14 +3665,14 @@
             ]
           },
           "depth": {
-            "description": "Number of results to fetch (1-100). Defaults to 20.",
+            "description": "How many results to fetch, 1 to 100. Default 20.",
             "type": "integer",
             "minimum": 1,
             "maximum": 100
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -3728,8 +3728,8 @@
     },
     {
       "name": "get_google_business_questions",
-      "title": "Get Google business questions",
-      "description": "Fetches Google Business Profile questions and answers for one business (by businessName, cid, or placeId) near a coordinate. Run this only when Q&A evidence is needed. Charges credits.",
+      "title": "Google business Q&A",
+      "description": "Fetches the questions and answers on one business's Google profile, found by businessName, cid or placeId and a coordinate. Call it only when you actually need Q&A evidence. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3737,22 +3737,22 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "businessName": {
-            "description": "Business name as it appears on Google. Supply exactly one of businessName, cid, or placeId.",
+            "description": "The business name as Google shows it. Give exactly one of businessName, cid or placeId.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
           },
           "cid": {
-            "description": "Google-defined business CID (from get_local_serp_results rows). Most precise identifier.",
+            "description": "Google's business CID, as found in get_local_serp_results rows. The most precise identifier.",
             "type": "string",
             "minLength": 1,
             "maxLength": 64
           },
           "placeId": {
-            "description": "Google Maps place_id (from get_local_serp_results rows).",
+            "description": "Google Maps place_id, as found in get_local_serp_results rows.",
             "type": "string",
             "minLength": 1,
             "maxLength": 256
@@ -3764,19 +3764,19 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude of the search center."
+                "description": "Latitude of the point to search around."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude of the search center."
+                "description": "Longitude of the point to search around."
               },
               "radiusKm": {
                 "type": "number",
                 "minimum": 1,
                 "maximum": 100000,
-                "description": "Search radius around the center, in whole kilometers (fractions are rounded)."
+                "description": "Search radius in whole kilometres; fractions are rounded."
               }
             },
             "required": [
@@ -3784,17 +3784,17 @@
               "longitude",
               "radiusKm"
             ],
-            "description": "Coordinate and radius to search around."
+            "description": "The point and radius to search around."
           },
           "depth": {
-            "description": "Maximum Q&A rows to fetch (1-100). Defaults to 20.",
+            "description": "Most Q&A rows to fetch, 1 to 100. Default 20.",
             "type": "integer",
             "minimum": 1,
             "maximum": 100
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -3849,8 +3849,8 @@
     },
     {
       "name": "get_business_profile",
-      "title": "Get business profile",
-      "description": "Reads one Google Business Profile: categories, rating and review count, rating breakdown, address, phone, website, claimed status, opening hours, and photo count. Use it to audit your own profile or to compare a competitor's. Charges credits.",
+      "title": "Google business profile",
+      "description": "Reads a single Google Business Profile: primary and extra categories, star rating with the review count and star breakdown, address, phone number, website, whether the owner has claimed it, opening hours and number of photos. Good for auditing your own listing or sizing up a competitor. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3858,22 +3858,22 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "businessName": {
-            "description": "Business name as it appears on Google. Supply exactly one of businessName, cid, or placeId.",
+            "description": "The business name as Google shows it. Give exactly one of businessName, cid or placeId.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
           },
           "cid": {
-            "description": "Google-defined business CID (from get_local_serp_results rows). Most precise identifier.",
+            "description": "Google's business CID, as found in get_local_serp_results rows. The most precise identifier.",
             "type": "string",
             "minLength": 1,
             "maxLength": 64
           },
           "placeId": {
-            "description": "Google Maps place_id (from get_local_serp_results rows).",
+            "description": "Google Maps place_id, as found in get_local_serp_results rows.",
             "type": "string",
             "minLength": 1,
             "maxLength": 256
@@ -3885,16 +3885,16 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude of the search center."
+                "description": "Latitude of the point to search around."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude of the search center."
+                "description": "Longitude of the point to search around."
               },
               "radiusKm": {
-                "description": "Search radius around the center, in kilometers (0.2-199). Defaults to 10.",
+                "description": "Search radius around the point in kilometres, 0.2 to 199. Default 10.",
                 "type": "number",
                 "minimum": 0.2,
                 "maximum": 199
@@ -3904,17 +3904,17 @@
               "latitude",
               "longitude"
             ],
-            "description": "Coordinate to search from. Use it when the business name is ambiguous; otherwise locationCode is enough."
+            "description": "A point to start from. Use it if the business name is ambiguous; otherwise locationCode is sufficient."
           },
           "locationCode": {
-            "description": "DataForSEO location code. Ignored when `near` is set; otherwise defaults to the project's market.",
+            "description": "DataForSEO location code. Ignored when `near` is given; otherwise the project's market is used.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -3972,8 +3972,8 @@
     },
     {
       "name": "get_business_reviews",
-      "title": "Get business reviews",
-      "description": "Collects Google reviews for a business, with rating, author, text, and whether the owner replied. Use it for review-gap analysis against competitors and to spot unanswered reviews. Usually completes within this call; if the queued job is still running you get status 'processing' plus a taskId — call again with that taskId in 30-60 seconds to collect the result at no extra cost. Charges credits.",
+      "title": "Google business reviews",
+      "description": "Gathers a business's Google reviews with rating, reviewer, text and whether the owner replied, for comparing review counts with competitors and finding unanswered reviews. Most calls finish immediately. When the queued job is still running the answer is status 'processing' with a taskId; call again with that taskId after 30 to 60 seconds to get the reviews without paying again. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3981,22 +3981,22 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "businessName": {
-            "description": "Business name as it appears on Google. Supply exactly one of businessName, cid, or placeId.",
+            "description": "The business name as Google shows it. Give exactly one of businessName, cid or placeId.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
           },
           "cid": {
-            "description": "Google-defined business CID (from get_local_serp_results rows). Most precise identifier.",
+            "description": "Google's business CID, as found in get_local_serp_results rows. The most precise identifier.",
             "type": "string",
             "minLength": 1,
             "maxLength": 64
           },
           "placeId": {
-            "description": "Google Maps place_id (from get_local_serp_results rows).",
+            "description": "Google Maps place_id, as found in get_local_serp_results rows.",
             "type": "string",
             "minLength": 1,
             "maxLength": 256
@@ -4008,16 +4008,16 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude of the search center."
+                "description": "Latitude of the point to search around."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude of the search center."
+                "description": "Longitude of the point to search around."
               },
               "radiusKm": {
-                "description": "Search radius around the center, in kilometers (0.2-199). Defaults to 10.",
+                "description": "Search radius around the point in kilometres, 0.2 to 199. Default 10.",
                 "type": "number",
                 "minimum": 0.2,
                 "maximum": 199
@@ -4027,26 +4027,26 @@
               "latitude",
               "longitude"
             ],
-            "description": "Coordinate to search from. Use it when the business name is ambiguous; otherwise locationCode is enough."
+            "description": "A point to start from. Use it if the business name is ambiguous; otherwise locationCode is sufficient."
           },
           "locationCode": {
-            "description": "DataForSEO location code. Ignored when `near` is set; otherwise defaults to the project's market.",
+            "description": "DataForSEO location code. Ignored when `near` is given; otherwise the project's market is used.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           },
           "depth": {
-            "description": "Number of reviews to collect (10-200). Defaults to 20. Billed per 10 reviews (per 20 when includeOtherSources is true).",
+            "description": "How many reviews to collect, 10 to 200. Default 20. Billed in blocks of 10 reviews (blocks of 20 when includeOtherSources is true).",
             "type": "integer",
             "minimum": 10,
             "maximum": 200
           },
           "sortBy": {
-            "description": "Review sort order. Defaults to newest. Ignored when includeOtherSources is true — the extended endpoint has no sort option.",
+            "description": "How to order the reviews. Default newest. Ignored when includeOtherSources is true, because that mode cannot be sorted.",
             "type": "string",
             "enum": [
               "newest",
@@ -4056,11 +4056,11 @@
             ]
           },
           "includeOtherSources": {
-            "description": "Also collect the reviews Google shows from other sites (Yelp, Tripadvisor, Trustpilot). Defaults to false. Costs more per review and cannot be sorted.",
+            "description": "Also gather the reviews that Google lists from other websites (Yelp, Tripadvisor, Trustpilot). Default false. Each review costs more and the results cannot be sorted.",
             "type": "boolean"
           },
           "taskId": {
-            "description": "Resume a previous call that returned status \"processing\". Pass back the taskId exactly as returned (format \"google:<id>\" or \"extended:<id>\"); it selects the right endpoint on its own. Resuming charges no extra credits.",
+            "description": "Picks up an earlier call that answered \"processing\". Send back the taskId unchanged (it looks like \"google:<id>\" or \"extended:<id>\" and already says which kind of collection it is). Collecting costs nothing extra.",
             "type": "string",
             "minLength": 1,
             "maxLength": 128
@@ -4140,8 +4140,8 @@
     },
     {
       "name": "get_business_updates",
-      "title": "Get business updates",
-      "description": "Collects the posts (updates, offers, events) published on a Google Business Profile. Use it to check posting activity and recency on your profile or a competitor's. Usually completes within this call; a 'processing' response returns a taskId to call back with in 30-60 seconds at no extra cost. Charges credits.",
+      "title": "Google business posts",
+      "description": "Gathers the posts (updates, offers, events) a Google Business Profile has published, to judge how active and current a profile is, whether yours or a competitor's. It normally completes within the call; if it answers 'processing' it includes a taskId, and calling again with it after 30 to 60 seconds fetches the outcome free of charge. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4149,22 +4149,22 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "businessName": {
-            "description": "Business name as it appears on Google. Supply exactly one of businessName, cid, or placeId.",
+            "description": "The business name as Google shows it. Give exactly one of businessName, cid or placeId.",
             "type": "string",
             "minLength": 1,
             "maxLength": 200
           },
           "cid": {
-            "description": "Google-defined business CID (from get_local_serp_results rows). Most precise identifier.",
+            "description": "Google's business CID, as found in get_local_serp_results rows. The most precise identifier.",
             "type": "string",
             "minLength": 1,
             "maxLength": 64
           },
           "placeId": {
-            "description": "Google Maps place_id (from get_local_serp_results rows).",
+            "description": "Google Maps place_id, as found in get_local_serp_results rows.",
             "type": "string",
             "minLength": 1,
             "maxLength": 256
@@ -4176,16 +4176,16 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude of the search center."
+                "description": "Latitude of the point to search around."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude of the search center."
+                "description": "Longitude of the point to search around."
               },
               "radiusKm": {
-                "description": "Search radius around the center, in kilometers (0.2-199). Defaults to 10.",
+                "description": "Search radius around the point in kilometres, 0.2 to 199. Default 10.",
                 "type": "number",
                 "minimum": 0.2,
                 "maximum": 199
@@ -4195,26 +4195,26 @@
               "latitude",
               "longitude"
             ],
-            "description": "Coordinate to search from. Use it when the business name is ambiguous; otherwise locationCode is enough."
+            "description": "A point to start from. Use it if the business name is ambiguous; otherwise locationCode is sufficient."
           },
           "locationCode": {
-            "description": "DataForSEO location code. Ignored when `near` is set; otherwise defaults to the project's market.",
+            "description": "DataForSEO location code. Ignored when `near` is given; otherwise the project's market is used.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           },
           "depth": {
-            "description": "Number of posts to collect (10-100). Defaults to 10.",
+            "description": "How many posts to collect, 10 to 100. Default 10.",
             "type": "integer",
             "minimum": 10,
             "maximum": 100
           },
           "taskId": {
-            "description": "Resume a previous call that returned status \"processing\". Pass back the taskId exactly as returned. Resuming charges no extra credits.",
+            "description": "Picks up an earlier call that answered \"processing\". Send back the taskId unchanged. Collecting costs nothing extra.",
             "type": "string",
             "minLength": 1,
             "maxLength": 128
@@ -4282,8 +4282,8 @@
     },
     {
       "name": "list_business_categories",
-      "title": "List business categories",
-      "description": "Lists the Google Business categories DataForSEO recognizes, ranked by how many businesses use them. Use it to find valid category slugs for search_local_businesses (e.g. 'pizza_restaurant'). Uses no credits (the full list is cached for 7 days).",
+      "title": "Business category list",
+      "description": "Lists the Google Business categories DataForSEO knows, most used first. Use it to find valid category names for search_local_businesses, such as 'pizza_restaurant'. Free; the full list is kept for 7 days.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4291,16 +4291,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "query": {
-            "description": "Case-insensitive substring to match against category slugs (e.g. 'plumb').",
+            "description": "Text to look for inside category names, ignoring case, for example 'plumb'.",
             "type": "string",
             "minLength": 1,
             "maxLength": 80
           },
           "limit": {
-            "description": "Maximum categories to return (1-200). Defaults to 50.",
+            "description": "Most categories to return, 1 to 200. Default 50.",
             "type": "integer",
             "minimum": 1,
             "maximum": 200
@@ -4375,8 +4375,8 @@
     },
     {
       "name": "get_local_rank_grid",
-      "title": "Get local rank grid",
-      "description": "Runs one Google Maps search per point of a square grid around a coordinate and reports where the target business ranks at each point — plus each point's result count and #1 business — revealing how far its Maps visibility reaches. Cost scales with the grid: gridSize squared SERP calls (3x3 = 9, the sensible default; 5x5 = 25). Charges credits per grid point.",
+      "title": "Local rank grid",
+      "description": "Runs one Google Maps search for each point of a square grid centred on a coordinate and shows the target business's position at every point, together with how many results the point returned and who came first. This shows how far the business's Maps visibility extends. The cost is one search per point (gridSize squared: 9 for the default 3x3, 25 for 5x5). Paid per grid point.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4384,37 +4384,37 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "keyword": {
             "type": "string",
             "minLength": 1,
             "maxLength": 120,
-            "description": "Search query to run on Google Maps at every grid point."
+            "description": "The query to run on Google Maps at each grid point."
           },
           "target": {
             "type": "object",
             "properties": {
               "cid": {
-                "description": "Match rows whose cid equals this value (most reliable).",
+                "description": "Matches a result whose cid equals this value. The most dependable option.",
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 64
               },
               "placeId": {
-                "description": "Match rows whose place_id equals this value.",
+                "description": "Matches a result whose place_id equals this value.",
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256
               },
               "name": {
-                "description": "Match rows whose title contains this text (case-insensitive). Used only when cid/placeId do not match.",
+                "description": "Matches a result whose title contains this text, ignoring case. Only used when cid and placeId find nothing.",
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 200
               }
             },
-            "description": "The business to locate in each result set. Supply at least one of cid, placeId, or name."
+            "description": "The business to find in every result set. Give at least one of cid, placeId or name."
           },
           "center": {
             "type": "object",
@@ -4423,23 +4423,23 @@
                 "type": "number",
                 "minimum": -90,
                 "maximum": 90,
-                "description": "Latitude of the center."
+                "description": "Latitude of the grid's centre."
               },
               "longitude": {
                 "type": "number",
                 "minimum": -180,
                 "maximum": 180,
-                "description": "Longitude of the center."
+                "description": "Longitude of the grid's centre."
               }
             },
             "required": [
               "latitude",
               "longitude"
             ],
-            "description": "Coordinate the grid is centered on (usually the storefront)."
+            "description": "The coordinate the grid is centred on, usually the shop or office."
           },
           "gridSize": {
-            "description": "Grid width: 3 (9 searches) or 5 (25 searches). Defaults to 3.",
+            "description": "Number of points along one side: 3 (9 searches) or 5 (25 searches). Default 3.",
             "anyOf": [
               {
                 "type": "number",
@@ -4452,13 +4452,13 @@
             ]
           },
           "spacingKm": {
-            "description": "Distance between neighbouring grid points, in km. Defaults to 2.",
+            "description": "Distance between neighbouring points in km. Default 2.",
             "type": "number",
             "minimum": 0.25,
             "maximum": 10
           },
           "device": {
-            "description": "Device the SERP is rendered for. Defaults to mobile.",
+            "description": "Device the pages are rendered for. Default mobile.",
             "type": "string",
             "enum": [
               "desktop",
@@ -4466,14 +4466,14 @@
             ]
           },
           "zoom": {
-            "description": "Map zoom every point is searched at. Defaults to a zoom derived from spacingKm and latitude so each point's viewport spans the grid spacing; override only when you need a specific viewport.",
+            "description": "Map zoom used at every point. By default it is worked out from spacingKm and the latitude so that each point's view covers the spacing between points; set it only when you need a particular view.",
             "type": "integer",
             "minimum": 4,
             "maximum": 18
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           }
         },
         "required": [
@@ -4688,8 +4688,8 @@
     },
     {
       "name": "get_keyword_metrics",
-      "title": "Get keyword metrics",
-      "description": "Hydrate up to 700 known keywords with search volume, keyword difficulty (KD), search intent, CPC, competition, and monthly trends in a single call. Use it to score candidate or known keywords — including Search Console striking-distance queries — by real demand and ranking difficulty. For countries served from Google Ads data (e.g. Iceland), KD and intent are null. Charges credits.",
+      "title": "Keyword metrics lookup",
+      "description": "Looks up search volume, keyword difficulty (KD), intent, CPC, competition and monthly trend for up to 700 keywords you already have, in one call. Use it to rank candidate keywords, including Search Console queries that are close to page one, by real demand and difficulty. In countries served only from Google Ads data (such as Iceland) KD and intent come back null. Paid per call.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4697,7 +4697,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "keywords": {
             "minItems": 1,
@@ -4708,28 +4708,28 @@
               "minLength": 1,
               "maxLength": 80
             },
-            "description": "Keywords to fetch metrics for (1-700)."
+            "description": "Keywords to look up, 1 to 700."
           },
           "locationCode": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991,
-            "description": "DataForSEO location code. Defaults to the project's default market (see list_projects; editable in project settings). See dataforseo.com/help-center/locations. Some countries (e.g. Iceland, 2352) are served from Google Ads data: keyword volume/CPC/trends work, but keyword difficulty, search intent, and domain analytics are unavailable."
+            "description": "DataForSEO location code. Defaults to the project's market (see list_projects). Some countries, such as Iceland (2352), are served from Google Ads data only: volume, CPC and trends work, but difficulty, intent and domain analytics are not available there."
           },
           "languageCode": {
             "type": "string",
-            "description": "Language code (e.g. 'en', 'es', 'vi'). Defaults to the project's default market language (see list_projects)."
+            "description": "Language code such as 'en', 'es' or 'vi'. Defaults to the language of the project's market."
           },
           "includeMonthlyTrends": {
-            "description": "Include monthly search-volume trend rows. Defaults to true.",
+            "description": "Include the monthly search-volume rows. Default true.",
             "type": "boolean"
           },
           "includeClickstreamData": {
-            "description": "Refine search volumes with clickstream data, which disaggregates Google Ads' grouped close-variant volumes (plurals/misspellings). DOUBLES the credit cost of the call. Default false. No effect for countries served from Google Ads data.",
+            "description": "Sharpen volumes with clickstream data, which splits the groups of close variants (plurals, misspellings) that Google Ads reports together. Doubles the price of the call. Default false. Has no effect where only Google Ads data is available.",
             "type": "boolean"
           },
           "sortBy": {
-            "description": "Sort order for returned rows. Defaults to search_volume.",
+            "description": "How to order the rows. Default search_volume.",
             "type": "string",
             "enum": [
               "search_volume",
@@ -4791,8 +4791,8 @@
     },
     {
       "name": "get_search_console_performance",
-      "title": "Get Google Search Console performance",
-      "description": "Query the connected Search Console property's Search Analytics: clicks, impressions, CTR, and average position by query/page/country/device/date. First-party data — use it for what already ranks, near-ranking queries, and pages with real demand. Google sorts by clicks and can't filter by position, so minPosition/maxPosition/minImpressions are applied server-side over the top 1000 rows of the window — use them instead of fetching everything. ctr is a 0-1 fraction; position is a 1-based average and is omitted from rows when type is 'discover' or 'googleNews' (Google does not report it there — treat it as unavailable, not a failure); dates are Pacific Time; the last ~3 days may be incomplete. Reads only the Search Console property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only; uses no credits.",
+      "title": "Search Console performance",
+      "description": "Queries Search Analytics for the project's connected Search Console property and returns clicks, impressions, CTR and average position grouped by query, page, country, device or date. As first-party data it shows what already ranks, queries that nearly rank and pages with genuine demand. Google orders by clicks and cannot filter by position, so minPosition, maxPosition and minImpressions are applied on our side to the top 1000 rows of the period; use them instead of pulling everything. ctr runs from 0 to 1; position is a 1-based average that is missing for 'discover' and 'googleNews' because Google does not report it (not an error); dates follow Pacific Time and the last ~3 days may be incomplete. Only the property already linked to the project is read, with the Google account stored in that link. Read-only and free.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4800,10 +4800,10 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "dimensions": {
-            "description": "Group rows by these dimensions. Default ['query']. Use ['page'] for top pages, ['query','page'] to map queries to pages / spot cannibalization, ['date'] for a time series.",
+            "description": "Dimensions that define each row; default ['query']. Choose ['page'] for top pages, ['query','page'] to pair queries with pages and detect cannibalisation, or ['date'] for a time series.",
             "minItems": 1,
             "maxItems": 4,
             "type": "array",
@@ -4820,7 +4820,7 @@
             }
           },
           "dateRange": {
-            "description": "Convenience window (default last_28_days). End is set ~3 days back for GSC data lag. Ignored if startDate+endDate are given. Max lookback is 16 months.",
+            "description": "Shortcut for the period (default last_28_days). It ends about 3 days ago because Search Console data lags, and it is ignored when startDate and endDate are both given. Data goes back at most 16 months.",
             "type": "string",
             "enum": [
               "last_7_days",
@@ -4832,17 +4832,17 @@
             ]
           },
           "startDate": {
-            "description": "Explicit start (YYYY-MM-DD, Pacific Time). Use with endDate.",
+            "description": "First day of the period as YYYY-MM-DD in Pacific Time. Use together with endDate.",
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "endDate": {
-            "description": "Explicit end (YYYY-MM-DD, Pacific Time). Use with startDate.",
+            "description": "Last day of the period as YYYY-MM-DD in Pacific Time. Use together with startDate.",
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "filters": {
-            "description": "AND-combined filters. To get the queries for one page: [{dimension:'page',operator:'equals',expression:'https://example.com/post'}] with dimensions ['query'].",
+            "description": "Conditions that must all be true. To get one page's queries, use dimensions ['query'] with [{dimension:'page',operator:'equals',expression:'https://example.com/post'}].",
             "maxItems": 5,
             "type": "array",
             "items": {
@@ -4881,35 +4881,35 @@
             }
           },
           "rowLimit": {
-            "description": "Rows per call (default 250, max 1000). GSC sorts by clicks desc; paginate with startRow when hasMore is true.",
+            "description": "Rows per call, default 250, at most 1000. Rows come sorted by clicks, highest first; when hasMore is true, fetch the next block with startRow.",
             "type": "integer",
             "minimum": 1,
             "maximum": 1000
           },
           "startRow": {
-            "description": "Pagination offset.",
+            "description": "Row offset to start from, for paging.",
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
           "minPosition": {
-            "description": "Keep rows with average position >= this. For 'striking distance' queries use minPosition 5, maxPosition 20, minImpressions 50.",
+            "description": "Keep rows whose average position is this number or larger. For queries near page one try minPosition 5, maxPosition 20 and minImpressions 50.",
             "type": "number",
             "minimum": 1
           },
           "maxPosition": {
-            "description": "Keep rows with average position <= this.",
+            "description": "Keep only rows whose average position is at most this number.",
             "type": "number",
             "minimum": 1
           },
           "minImpressions": {
-            "description": "Keep rows with at least this many impressions.",
+            "description": "Keep only rows with at least this many impressions.",
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
           "type": {
-            "description": "Search type (default web).",
+            "description": "Kind of search to report on. Default web.",
             "type": "string",
             "enum": [
               "web",
@@ -4921,7 +4921,7 @@
             ]
           },
           "dataState": {
-            "description": "'all' (default) includes fresh/incomplete recent data.",
+            "description": "'all' (default) also counts the newest data, which may still be incomplete.",
             "type": "string",
             "enum": [
               "all",
@@ -5040,8 +5040,8 @@
     },
     {
       "name": "inspect_urls",
-      "title": "Inspect URLs in Google Search Console",
-      "description": "Read Google Search Console's existing index status for up to 10 URLs of the connected property: index/coverage state, last crawl time, Google-selected vs declared canonical, and mobile/rich-results verdicts. Use it to answer 'is this page indexed? why not?'. Google requires each URL to belong to that property. This does not run a live crawl. Per-URL failures are reported inline. Reads only the Search Console property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only; uses no credits.",
+      "title": "Search Console URL inspection",
+      "description": "Reports what Search Console already knows about as many as 10 URLs in the connected property: index and coverage state, last crawl time, Google's chosen canonical versus the declared one, and mobile and rich-result verdicts. Use it to answer 'is this page indexed, and if not, why?'. Google accepts only URLs inside that property, and no live crawl happens. A failing URL is reported in place without affecting the others. Only the property already linked to the project is read, with the Google account stored in that link. Read-only and free.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5049,7 +5049,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "urls": {
             "minItems": 1,
@@ -5059,10 +5059,10 @@
               "type": "string",
               "format": "uri"
             },
-            "description": "1–10 absolute URLs to inspect. Each must belong to the connected property."
+            "description": "Between one and ten absolute URLs to inspect, each inside the connected property."
           },
           "languageCode": {
-            "description": "BCP-47 language for the inspection result (e.g. 'en-US').",
+            "description": "BCP-47 language for the inspection text, for example 'en-US'.",
             "type": "string"
           }
         },
@@ -5151,8 +5151,8 @@
     },
     {
       "name": "get_google_analytics_organic_landing_pages",
-      "title": "Get Google Analytics organic landing pages",
-      "description": "Read organic-search landing page sessions, engagement, key events, transactions, and revenue from the project's connected GA4 property. Defaults to the last 28 complete property days. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: organic landing pages",
+      "description": "Reads, from the project's connected GA4 property, how organic-search landing pages perform: sessions, engagement, key events, transactions and revenue. The default period is the last 28 complete days of the property. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5160,17 +5160,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -5326,8 +5326,8 @@
     },
     {
       "name": "get_google_analytics_page_performance",
-      "title": "Get Google Analytics page performance",
-      "description": "Read page views, users, engagement duration, and key events from the connected GA4 property. Organic Search is the default; set channel to all to include every channel. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: page performance",
+      "description": "Reads page views, users, engagement time and key events for the pages of the connected GA4 property. By default only Organic Search traffic counts; set channel to all for every channel. ",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5335,17 +5335,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -5513,8 +5513,8 @@
     },
     {
       "name": "get_google_analytics_key_events",
-      "title": "Get Google Analytics key events",
-      "description": "Read active GA4 key events with counts and users by event or organic landing page. Previous-period comparison is available for the event breakdown. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: key events",
+      "description": "Reads the active GA4 key events with their counts and users, broken down by event or by organic landing page; the event breakdown can be compared with the previous period. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5522,17 +5522,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -5708,8 +5708,8 @@
     },
     {
       "name": "get_search_opportunities",
-      "title": "Get search opportunities",
-      "description": "Join Search Console pages ranking in positions 4–20 with GA4 organic landing-page outcomes, then score matched opportunities by demand, business value, and reachability. Unmatched pages remain visible and unscored. Reads only the Search Console and GA4 properties already connected to an OpenSEO project the caller is authorized to access. The server selects the Google accounts and properties from that project's saved connections. Read-only and uses no OpenSEO credits.",
+      "title": "Search opportunities",
+      "description": "Joins Search Console pages that rank between positions 4 and 20 with how those pages perform as GA4 organic landing pages, then ranks each match by demand, business value and how reachable the gain is. Pages without a match are still listed, unscored. Both the Search Console and GA4 properties must already be linked to the project, and the Google accounts stored in those links are used. Read-only and free of closeseo credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5717,17 +5717,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 50,
@@ -5859,8 +5859,8 @@
     },
     {
       "name": "get_google_analytics_organic_overview",
-      "title": "Get Google Analytics organic overview",
-      "description": "Answer whether organic traffic is improving with top-line sessions, users, engagement, key events, transactions, revenue, an equal-length previous-period comparison, and a daily or weekly trend. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: organic overview",
+      "description": "Answers whether organic traffic is getting better: headline sessions, users, engagement, key events, transactions and revenue, compared with an equally long previous period, plus a daily or weekly trend. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -5868,17 +5868,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "trend": {
             "default": "daily",
@@ -6028,8 +6028,8 @@
     },
     {
       "name": "get_google_analytics_traffic_acquisition",
-      "title": "Get Google Analytics traffic acquisition",
-      "description": "Compare session acquisition by channel group, source/medium, or campaign, including sessions, users, engagement, key events, transactions, and revenue. Previous-period comparison is available for channel group; source/medium also reports attribution-quality diagnostics. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: traffic acquisition",
+      "description": "Compares how sessions arrive, by channel group, source/medium or campaign, with sessions, users, engagement, key events, transactions and revenue. The previous-period comparison exists for channel groups; source/medium also reports diagnostics on how well traffic is attributed. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6037,17 +6037,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -6216,8 +6216,8 @@
     },
     {
       "name": "get_google_analytics_measurement_health",
-      "title": "Get Google Analytics measurement health",
-      "description": "Diagnose the connected property's data streams, web measurement IDs, enhanced-measurement settings, key events, and custom definitions. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: measurement health",
+      "description": "Reviews how the connected property is configured for measurement: its data streams and web measurement IDs, enhanced-measurement options, key events and custom definitions. ",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6225,7 +6225,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           }
         },
         "required": [
@@ -6338,8 +6338,8 @@
     },
     {
       "name": "get_google_analytics_ecommerce_performance",
-      "title": "Get Google Analytics ecommerce performance",
-      "description": "Read item views, add-to-cart units, purchases, and item revenue by item, or transactions and purchase revenue by landing page. Returns a detected, none, or unknown activity state; landing pages can be limited to those with transactions. Organic Search is the default. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: ecommerce performance",
+      "description": "Reads views, add-to-cart units, purchases and revenue per product, or transactions and purchase revenue per landing page. The result also states whether ecommerce activity was detected, absent or unknown, and landing pages can be restricted to those with transactions. Organic Search is the default channel. ",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6347,17 +6347,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -6533,8 +6533,8 @@
     },
     {
       "name": "get_google_analytics_site_search",
-      "title": "Get Google Analytics site search",
-      "description": "Read measured internal search terms with search events, users, sessions, engaged sessions, and engagement rate. Requires GA4 site-search measurement. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: site search",
+      "description": "Reads the on-site search terms visitors typed, with the number of search events, users, sessions and engaged sessions and the engagement rate. GA4 site-search measurement must be enabled. ",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6542,17 +6542,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -6708,8 +6708,8 @@
     },
     {
       "name": "get_google_analytics_audience_breakdown",
-      "title": "Get Google Analytics audience breakdown",
-      "description": "Read device, country, or new-versus-returning users, sessions, engagement, and key events. Previous-period comparison is available for device and new-versus-returning breakdowns. No demographic or user-level dimensions. Reads only the GA4 property already connected to an OpenSEO project the caller is authorized to access. The server selects the Google account and property from that project's saved connection. Read-only and uses no OpenSEO credits.",
+      "title": "Analytics: audience breakdown",
+      "description": "Reads users, sessions, engagement and key events by device, by country or by new versus returning visitors; device and new-versus-returning can be compared with the previous period. There are no demographic or user-level dimensions. Only the GA4 property already connected to a closeseo project is read, using the Google account saved with that connection. Read-only and free of closeseo credits.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6717,17 +6717,17 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "startDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "endDate": {
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-            "description": "Inclusive YYYY-MM-DD date. Provide both startDate and endDate."
+            "description": "First day (inclusive) as YYYY-MM-DD. Send startDate and endDate together."
           },
           "limit": {
             "default": 100,
@@ -6904,8 +6904,8 @@
     },
     {
       "name": "run_site_audit",
-      "title": "Run site audit",
-      "description": "Start a site audit: crawls the site (robots.txt-aware, same-origin), checks every page for SEO issues (broken links, duplicate/missing titles and descriptions, redirect chains, orphan pages, canonical problems, thin content, and more), and optionally runs Lighthouse on a sample of pages. Runs in the background — poll get_audit_status, then read get_audit_issues. If the site rate limits the crawler it slows down and retries; pages it still cannot read are honestly flagged as blocked or rate-limited rather than misreported.",
+      "title": "Start site audit",
+      "description": "Launches an audit in the background. The crawler stays on the starting origin, honours robots.txt and checks every page for SEO faults: broken links, missing or repeated titles and meta descriptions, redirect chains, canonical errors, orphan pages, thin text and others. Lighthouse can optionally be run on some pages. Check progress with get_audit_status and read findings with get_audit_issues. When the site throttles the crawler it backs off and retries, and pages it never manages to read are labelled blocked or rate-limited rather than guessed at.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6913,26 +6913,26 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "url": {
             "type": "string",
             "minLength": 1,
             "maxLength": 2048,
-            "description": "Start URL to crawl."
+            "description": "Address to start crawling from."
           },
           "maxPages": {
-            "description": "Page budget for the crawl (default 50).",
+            "description": "How many pages the crawl may visit at most. Default 50.",
             "type": "integer",
             "minimum": 10,
             "maximum": 10000
           },
           "renderJavaScript": {
-            "description": "Render JavaScript before auditing, for sites whose content or links load client-side or whose bot protection blocks the plain crawler. Slower, and limited to 1,000 pages. On hosted plans: Estimated $0.07 to $0.39 for up to 100 pages. Sites with aggressive bot detection need our more capable renderer and cost more. Billing counts pages actually rendered. Hosted plans hold the high end until the audit ends; an account that cannot cover it is refused. Default false.",
+            "description": "Not supported by closeseo: audits fetch pages without running JavaScript, and a request with this set to true is rejected. Leave it false (the default).",
             "type": "boolean"
           },
           "runLighthouse": {
-            "description": "Run Lighthouse on a sample of up to 10 representative pages (default false — it adds several minutes of wall-clock time). Pass true only when the user wants performance/Core Web Vitals detail.",
+            "description": "Run Lighthouse on up to 10 representative pages. Default false, because it adds several minutes. Turn it on only when the user wants performance or Core Web Vitals detail.",
             "type": "boolean"
           }
         },
@@ -6980,8 +6980,8 @@
     },
     {
       "name": "list_site_audits",
-      "title": "List site audits",
-      "description": "Lists this project's site audits with IDs, URLs, status, page counts, and dates, newest first. Uses no credits. Use this to find an older audit to read or delete; get_audit_status defaults to the newest audit only.",
+      "title": "Browse site audits",
+      "description": "Returns the project's audits newest first, with ID, URL, status, page counts and dates. Free. Use it to locate an earlier audit you want to read or delete; when no ID is given, get_audit_status only looks at the newest one.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6989,7 +6989,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           }
         },
         "required": [
@@ -7043,8 +7043,8 @@
     },
     {
       "name": "delete_site_audit",
-      "title": "Delete site audit",
-      "description": "Permanently deletes one site audit and its crawled pages, issues, and Lighthouse results, freeing audit capacity. Uses the same workflow-stop and cleanup behavior as the dashboard. Uses no credits. Requires an owner or admin, like deletion in the dashboard. Saved reports and project context are kept.",
+      "title": "Remove site audit",
+      "description": "Permanently deletes one audit together with its crawled pages, issues and Lighthouse results. Free. A running audit is stopped first. Saved reports and the project's context are not affected.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7052,12 +7052,12 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "auditId": {
             "type": "string",
             "minLength": 1,
-            "description": "Exact audit ID from list_site_audits or run_site_audit. Required; never defaults to the latest audit."
+            "description": "ID of the audit to delete, from list_site_audits or run_site_audit. Required; it never falls back to the newest audit."
           }
         },
         "required": [
@@ -7112,8 +7112,8 @@
     },
     {
       "name": "get_audit_status",
-      "title": "Get site audit status",
-      "description": "Check the progress of a site audit (phase, pages crawled, Lighthouse progress). Free — reads OpenSEO state and may reconcile a dead workflow by marking its audit failed. Omit auditId for the most recent audit.",
+      "title": "Site audit progress",
+      "description": "Shows how far an audit has got (phase, pages crawled, Lighthouse progress). Free: it reads closeseo's own records, and an audit whose crawl died is marked failed. Without an auditId the newest audit is used.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7121,10 +7121,10 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "auditId": {
-            "description": "Audit ID. If omitted, uses the project's most recent audit.",
+            "description": "ID of the audit. Defaults to the project's newest audit.",
             "type": "string"
           }
         },
@@ -7176,8 +7176,8 @@
     },
     {
       "name": "get_audit_issues",
-      "title": "Get site audit issues",
-      "description": "Read the prioritized issue report from a completed site audit. Every issue carries a how_to_fix with concrete remediation steps an agent can act on. Free — reads OpenSEO state. Omit auditId for the most recent audit.",
+      "title": "Site audit issue report",
+      "description": "Returns the issue report of a finished audit, most important first. Each issue comes with a how_to_fix describing concrete steps. Free: it reads closeseo's own records. Without an auditId the newest audit is used.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7185,14 +7185,14 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "auditId": {
-            "description": "Audit ID. If omitted, uses the project's most recent audit.",
+            "description": "ID of the audit. Defaults to the project's newest audit.",
             "type": "string"
           },
           "severity": {
-            "description": "Only return issues of this severity.",
+            "description": "Restrict the result to one severity level.",
             "type": "string",
             "enum": [
               "critical",
@@ -7201,11 +7201,11 @@
             ]
           },
           "issueType": {
-            "description": "Only return issues of this type. One of: blocked-page, javascript-rendering-suspected, rate-limited-page, crawl-rate-limited, server-error, broken-internal-link, missing-title, broken-page, duplicate-title, duplicate-meta-description, duplicate-content, missing-meta-description, missing-h1, multiple-h1, redirect-chain, redirect-loop, canonical-conflict, thin-content, images-missing-alt, orphan-page, no-outgoing-links, title-too-long, title-too-short, meta-description-too-long, meta-description-too-short, heading-order-skip, slow-response, noindex-page, canonicalized-page, deep-page",
+            "description": "Only return issues of this type. Types: page_server_error, page_not_found, redirect_loop, redirect_chain, title_missing, title_too_long, title_too_short, title_duplicate, meta_description_missing, meta_description_too_long, meta_description_duplicate, h1_missing, h1_multiple, canonical_missing, canonical_points_elsewhere, noindex, images_missing_alt, low_word_count, slow_response, missing_lang, missing_viewport, mixed_content, not_https, broken_internal_link, robots_txt_missing, sitemap_missing, blocked_by_robots.",
             "type": "string"
           },
           "limit": {
-            "description": "Max issues to return (default 200).",
+            "description": "Most issues to return. Default 200.",
             "type": "integer",
             "minimum": 1,
             "maximum": 1000
@@ -7271,8 +7271,8 @@
     },
     {
       "name": "get_audit_pages",
-      "title": "Get site audit pages",
-      "description": "List crawled pages from a site audit with per-page SEO data (status, title, description, word count, indexability, crawl depth, link counts). Free — reads OpenSEO state. Omit auditId for the most recent audit.",
+      "title": "Site audit page list",
+      "description": "Returns the pages an audit crawled with their on-page data: status, title, description, word count, whether they can be indexed, depth in the site and link counts. Free; closeseo's own records are read. Without an auditId the newest audit is used.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7280,14 +7280,14 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "auditId": {
-            "description": "Audit ID. If omitted, uses the project's most recent audit.",
+            "description": "ID of the audit. Defaults to the project's newest audit.",
             "type": "string"
           },
           "fetchClass": {
-            "description": "Filter by fetch outcome (\"blocked\" = the site's bot protection challenged the crawler; \"rate_limited\" = a 429 prevented the crawler from reading the page).",
+            "description": "Filter by how fetching the page ended: \"blocked\" means bot protection on the site challenged the crawler; \"rate_limited\" means the site answered 429 so the page could not be read.",
             "type": "string",
             "enum": [
               "ok",
@@ -7297,17 +7297,17 @@
             ]
           },
           "statusCode": {
-            "description": "Filter by exact HTTP status code.",
+            "description": "Only pages with exactly this HTTP status code.",
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
           "urlContains": {
-            "description": "Filter to URLs containing this substring.",
+            "description": "Only pages whose URL contains this text.",
             "type": "string"
           },
           "limit": {
-            "description": "Max pages to return (default 100).",
+            "description": "Most pages to return. Default 100.",
             "type": "integer",
             "minimum": 1,
             "maximum": 1000
@@ -7368,8 +7368,8 @@
     },
     {
       "name": "save_report",
-      "title": "Save report",
-      "description": "Saves a finished HTML report to this project, where anyone in the workspace can read and print it. Uses no credits. New reports are private; replacing a report preserves its sharing setting and updates what any existing public link shows. Only when the user explicitly requests public sharing (in their prompt or instructions for the skill), call set_report_sharing after saving. Call list_reports first and pass the matching reportId to replace that report instead of creating a near-duplicate — a save whose title already exists in the project is refused. Give the report a specific title (the report type or subject and full report date), a summary carrying the verdict, the top action and the key numbers, and the skill slug you are running. Then reply with the returned url, a one-line verdict and the single top action; do not paste the report into chat.",
+      "title": "Store report",
+      "description": "Stores a finished HTML report in the project; it can then be read and printed in the app. Free. Reports are private when created, and replacing one leaves its sharing choice alone while updating what any public link displays. Only if the user explicitly asked for public sharing, call set_report_sharing once the save is done. Before saving, run list_reports and pass the matching reportId when redoing a report rather than adding a near-duplicate; a title already used in the project is refused. Choose a specific title (what the report covers plus its full date), write a summary with the verdict, the main action and the headline numbers, and send the slug of the skill you are following. When done, tell the user the returned url, give a one-sentence verdict and the one action that matters most, and keep the report itself out of the chat.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7377,35 +7377,35 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "title": {
             "type": "string",
             "minLength": 1,
-            "description": "Report type or specific subject and full report date, e.g. \"Competitive Landscape — Sep 17, 2026\". Omit the project's website; include the subject's bare hostname only when it differs from the project website or the project has no website. Use the same title in the HTML title and h1. Never a generic label like \"SEO Report\". Max 120 characters."
+            "description": "Name the kind of report or its specific subject and include the complete date, e.g. \"Competitive Landscape — Sep 17, 2026\". Do not mention the project's own website; add another site's bare hostname only when it is not the project's site or the project has no site. Reuse this exact title for the HTML <title> and the h1. Generic labels such as \"SEO Report\" are not allowed. At most 120 characters."
           },
           "summary": {
             "type": "string",
             "minLength": 1,
-            "description": "Markdown, under 2,500 characters: the verdict, the single top action, and the key numbers. This is what list_reports returns and what you or another agent read instead of the HTML."
+            "description": "Markdown below 2,500 characters holding the verdict, the one action that matters most and the headline numbers. list_reports returns it, and other agents read it in place of the HTML."
           },
           "html": {
             "type": "string",
             "minLength": 1,
-            "description": "The complete self-contained HTML document. Inline all CSS; no external requests of any kind (no CDNs, no web fonts, no images by URL, no fetch) — they are blocked when the report renders, and scripts are blocked too. No backticks and no ${ anywhere, including inside CSS content strings: some clients (Codex) pass this argument through a JavaScript template literal and either sequence corrupts the document. It must be a whole document, ending in </html>: a save that stops mid-document is refused, because there is no version history to fall back on. Aim under 80 KB so the report can be read back whole in one call; the hard limit is 500,000 bytes. Use the seo-report skill's starter template when you have it; otherwise a plain semantic document — heading, short sections, one table — reads fine."
+            "description": "The report as a single self-contained HTML document. Put all CSS inline and request nothing from outside (no CDNs, web fonts, image URLs or fetch calls): such requests are blocked when the report is displayed, as are scripts. Do not use backticks or the characters ${ anywhere, including inside CSS strings, because some clients run this value through a JavaScript template literal and either would damage the document. Submit a complete document that ends with </html>; a partial one is refused, as no earlier version could replace it. Stay below roughly 80 KB so one call can read it back; 500,000 bytes is the absolute maximum. A simple semantic page (heading, short sections, one table) is fine."
           },
           "reportId": {
-            "description": "Omit to create a new report. Pass an id from list_reports to replace that report in place — there is no version history and the old content is gone.",
+            "description": "Leave out to start a new report. Provide an ID from list_reports to overwrite that report; no history is kept, so the previous content disappears.",
             "type": "string",
             "minLength": 1
           },
           "skill": {
-            "description": "The slug of the skill that produced this report — the name of the SKILL.md you are running, e.g. \"seo-audit\". The report list keys on it, so a save without it shows \"—\".",
+            "description": "Slug of the skill that created the report (the name in the SKILL.md you follow), for example \"seo-audit\". The report list groups on it; leave it out and the list shows \"—\".",
             "type": "string",
             "maxLength": 60
           },
           "templateId": {
-            "description": "The id of the report template you followed, from list_report_templates or the project context. Pass it only when you actually followed that template; it is what the report list and the report page show instead of the skill slug.",
+            "description": "ID of the template you followed (see list_report_templates or the project context). Provide it only when you really used that template; the report list and page then display it in place of the skill slug.",
             "type": "string",
             "minLength": 1
           }
@@ -7475,8 +7475,8 @@
     },
     {
       "name": "list_reports",
-      "title": "List reports",
-      "description": "Lists this project's saved reports, newest update first: id, title, skill, who saved it, when, and a short summary preview. Uses no credits. Call this before save_report and reuse the id of the report you are redoing, so the project collects one good report per job instead of near-duplicates. Read the full summary with get_report; the HTML is only worth fetching to edit a specific passage.",
+      "title": "Browse reports",
+      "description": "Returns the project's saved reports with the most recently changed first: ID, title, skill, author, date and the opening of the summary. Free. Run it before save_report and send the ID of the report being redone, so each job leaves a single good report behind. get_report gives the full summary; fetch the HTML only when a specific passage needs editing.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7484,16 +7484,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "limit": {
-            "description": "Reports per page, newest update first. Default 20, max 50.",
+            "description": "Reports per page, most recently updated first. Default 20, at most 50.",
             "type": "integer",
             "minimum": 1,
             "maximum": 50
           },
           "offset": {
-            "description": "Rows to skip. Omit for the first page.",
+            "description": "How many reports to skip. Leave out for the first page.",
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
@@ -7562,8 +7562,8 @@
     },
     {
       "name": "get_report",
-      "title": "Get report",
-      "description": "Reads one saved report: title, skill, attribution, size, the full summary, and shareUrl (null when private or public sharing is unavailable on this deployment). Reading never publishes a report. Use set_report_sharing only when the user explicitly requests a sharing change. Uses no credits. This is the cheap way to see what a report already says before you revise it — pass includeHtml only when you need the document itself.",
+      "title": "Read report",
+      "description": "Reads one saved report: title, skill, who saved it, size, the complete summary and shareUrl (null if the report is private or this server has sharing off). Reading never publishes anything; change sharing with set_report_sharing only on the user's explicit request. Free. It is the inexpensive way to learn what a report already says before you revise it; ask for includeHtml only if you need the document itself.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7571,15 +7571,15 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "reportId": {
             "type": "string",
             "minLength": 1,
-            "description": "Report id from list_reports or save_report."
+            "description": "ID of the report, from list_reports or save_report."
           },
           "includeHtml": {
-            "description": "Include the full HTML document. Leave it off unless you need to edit a specific passage: an 80 KB report is roughly 20,000 tokens, and a larger one is truncated by many clients. When you do fetch it, compare new TextEncoder().encode(html).length against the returned htmlBytes — if it is smaller your client truncated the read, so send the user to the app instead of saving the short version back over the good report.",
+            "description": "Return the full HTML document as well. Skip this unless one passage needs editing: a report of 80 KB costs around 20,000 tokens and many clients cut longer content. If you do request it, compare new TextEncoder().encode(html).length with htmlBytes in the reply; if your copy is shorter, the client truncated it, so point the user to the app and do not overwrite the good report with the shortened text.",
             "type": "boolean"
           }
         },
@@ -7646,8 +7646,8 @@
     },
     {
       "name": "set_report_sharing",
-      "title": "Set report sharing",
-      "description": "Enables or revokes public sharing for one saved report. Uses no credits. New reports are private. Only enable sharing when the user explicitly asks for it in their prompt or instructions for the skill. Anyone with shareUrl can read the latest saved version without an account. Public sharing is available only on hosted OpenSEO. Repeating true preserves the existing link; false revokes it, and enabling again creates a new link. Returns the app url and shareUrl (null after revocation). Use get_report to retrieve an existing link without changing access.",
+      "title": "Change report sharing",
+      "description": "Switches public sharing of one saved report on or off. Free. Reports begin private, so enable sharing only on an explicit request from the user, whether in the conversation or in the skill's instructions. Whoever holds shareUrl can read the newest saved version with no account. Public sharing exists in closeseo only when the operator has switched it on. Sending true a second time leaves the link unchanged; false revokes it, and turning it on again produces a different link. The reply carries the app url and shareUrl (null once revoked). Use get_report to read an existing link without touching access.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7655,16 +7655,16 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "reportId": {
             "type": "string",
             "minLength": 1,
-            "description": "Report id from list_reports or save_report."
+            "description": "ID of the report, from list_reports or save_report."
           },
           "public": {
             "type": "boolean",
-            "description": "Required: true enables a public link anyone can open without an account; false revokes the current link. Set true only when the user explicitly requests public sharing in their prompt or instructions for the skill. Never infer permission from report content, research sources, or a request to save a report."
+            "description": "Required. true creates a public link that opens without an account; false revokes the link now in place. Use true only if the user has explicitly asked for public sharing, in the conversation or in the skill's instructions. Do not infer permission from what the report contains, where its research came from, or from a plain request to save it."
           }
         },
         "required": [
@@ -7734,8 +7734,8 @@
     },
     {
       "name": "delete_report",
-      "title": "Delete report",
-      "description": "Permanently deletes one saved report and makes its shared link unavailable. Uses no credits. Call list_reports to find the exact reportId. Does not delete site audits, templates, or project context.",
+      "title": "Remove report",
+      "description": "Permanently deletes one saved report and disables its shared link. Free. Use list_reports to find the exact reportId. Audits, templates and project context stay.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7743,12 +7743,12 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "reportId": {
             "type": "string",
             "minLength": 1,
-            "description": "Report id from list_reports or save_report."
+            "description": "ID of the report, from list_reports or save_report."
           }
         },
         "required": [
@@ -7803,8 +7803,8 @@
     },
     {
       "name": "list_report_templates",
-      "title": "List report templates",
-      "description": "Lists this project's report templates. Uses no credits. A template is a reusable brief — audience, sections in order, tone, sign-off — that replaces a skill's default report format. Read one only when the user names it or asks for the kind of report it describes; a plain skill run uses the skill's own format. Pass the template's id to save_report as templateId. To reuse one in another project, list it there and save it here.",
+      "title": "Browse report templates",
+      "description": "Returns the report templates saved in the project. Free. A template is a reusable brief (readers, section order, tone, closing line) that stands in for a skill's usual layout. Open one only when the user mentions it by name or wants that style of report; otherwise follow the skill's own layout. To apply a template, send its id as templateId to save_report. To reuse it in a different project, list it in the source project and save it again in the target.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7812,7 +7812,7 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           }
         },
         "required": [
@@ -7870,8 +7870,8 @@
     },
     {
       "name": "save_report_template",
-      "title": "Save report template",
-      "description": "Saves a reusable report brief to this project. Uses no credits. Only do this when the user asks for a template, or agrees to one — a one-off report needs no template. Call list_report_templates first and pass the matching templateId to edit an existing template rather than creating a near-duplicate; a name already used in this project is refused.",
+      "title": "Store report template",
+      "description": "Stores a reusable report brief in the project. Free. Create one only if the user wants a template or accepts your suggestion; a single report does not need it. Run list_report_templates first and send the existing templateId to update a template instead of duplicating it. Reusing a name that already exists in the project is refused.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7879,27 +7879,27 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "templateId": {
-            "description": "Omit to create a new template. Pass an id from list_report_templates to replace that template's name, description and instructions in place.",
+            "description": "Leave out to make a new template. Provide an ID from list_report_templates to overwrite that template's name, description and instructions.",
             "type": "string",
             "minLength": 1
           },
           "name": {
             "type": "string",
             "minLength": 1,
-            "description": "What the user will ask for by name, e.g. \"Client-ready audit summary\". Max 80 characters."
+            "description": "The name the user will use to ask for it, for example \"Client-ready audit summary\". Up to 80 characters."
           },
           "description": {
             "type": "string",
             "minLength": 1,
-            "description": "One line saying when to use this template. Agents read this to decide whether it applies, so name the occasion, not the format. Max 200 characters."
+            "description": "One line saying when the template applies. Agents use it to decide, so describe the occasion rather than the format. Up to 200 characters."
           },
           "instructions": {
             "type": "string",
             "minLength": 1,
-            "description": "Markdown, max 3,000 characters: the audience, the sections in order, the tone, the sign-off, and optionally an accent color as \"accent: #1C4ED8\". This replaces the skill's default section list and tone — never the seo-report HTML constraints, which always apply."
+            "description": "Markdown of up to 3,000 characters covering who the report is for, the order of its sections, the tone, how it ends and, if wanted, an accent colour written \"accent: #1C4ED8\". These override the skill's normal sections and tone, but not the HTML restrictions for reports, which still apply."
           }
         },
         "required": [
@@ -7963,8 +7963,8 @@
     },
     {
       "name": "delete_report_template",
-      "title": "Delete report template",
-      "description": "Permanently deletes one reusable report template from this project. Uses no credits. Call list_report_templates to find its templateId. Existing saved reports are kept.",
+      "title": "Remove report template",
+      "description": "Permanently deletes one reusable report template from the project. Free. Use list_report_templates to find its templateId. Reports already saved are kept.",
       "inputSchema": {
         "type": "object",
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7972,12 +7972,12 @@
           "projectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Required. The OpenSEO project ID to scope this call to. Get one from list_projects."
+            "description": "Required. ID of the project this call applies to; get it from list_projects."
           },
           "templateId": {
             "type": "string",
             "minLength": 1,
-            "description": "Template id from list_report_templates."
+            "description": "ID of the template, from list_report_templates."
           }
         },
         "required": [

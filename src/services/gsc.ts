@@ -7,9 +7,9 @@ import { getProject } from "./projects.ts";
 export const GSC_DIMENSIONS = ["query", "page", "country", "device", "date", "searchAppearance"] as const;
 export const GSC_DEFAULT_ROW_LIMIT = 250;
 export const GSC_MAX_ROW_LIMIT = 1000;
-const GSC_DATA_LAG_DAYS = 3; // Search Console data trails by 2-3 days
+const GSC_DATA_LAG_DAYS = 3; // Search Console figures arrive two to three days late
 
-export class GscNotConnectedError extends Error { constructor() { super("Search Console is not connected for this project"); this.name = "GscNotConnectedError"; } }
+export class GscNotConnectedError extends Error { constructor() { super("No Search Console property is linked to this project"); this.name = "GscNotConnectedError"; } }
 
 type Row = { keys?: string[]; clicks: number; impressions: number; ctr: number; position?: number };
 export type GscSite = { siteUrl: string; permissionLevel: string };
@@ -24,7 +24,7 @@ function subMonths(date: Date, months: number): Date {
   return d;
 }
 
-/** Resolve a convenience window or explicit dates, clamping the start to Search Console's 16-month history. */
+/** Turns a shortcut window or explicit dates into a date range, pulling the start forward to fit Search Console's 16 months of history. */
 export function resolveDateRange(i: { dateRange?: string; startDate?: string; endDate?: string }, today = new Date()) {
   const floor = fmt(subMonths(today, 16));
   if (i.startDate && i.endDate) return { startDate: i.startDate < floor ? floor : i.startDate, endDate: i.endDate };
@@ -44,7 +44,7 @@ type PerfInput = {
   filters?: { dimension: string; operator?: string; expression: string }[]; rowLimit?: number; startRow?: number; type?: string; dataState?: string;
 };
 
-/** `searchAnalytics.query` body. Flat filters must be wrapped in dimensionFilterGroups: Google silently ignores a top-level `filters`. */
+/** Builds the `searchAnalytics.query` body. Filters have to sit inside dimensionFilterGroups, because Google quietly drops a top-level `filters` key. */
 export function buildSearchAnalyticsRequest(i: PerfInput, today = new Date()) {
   const { startDate, endDate } = resolveDateRange(i, today);
   const req: Record<string, unknown> = {
@@ -61,13 +61,13 @@ export const getGscConnection = (ctx: Ctx, projectId: string) => ctx.db.prepare(
 const sites = (ctx: Ctx, grantId: string) => googleJson<{ siteEntry?: GscSite[] }>(ctx, grantId, `${apiBase(ctx, "www.googleapis.com")}/webmasters/v3/sites`).then((r) => r.siteEntry ?? []);
 
 export function describeGoogleError(e: unknown): string {
-  if (e instanceof GscNotConnectedError) return "Search Console is not connected for this project.";
-  if (e instanceof GoogleTokenError) return "The Search Console connection has expired or was revoked. Reconnect it to continue.";
+  if (e instanceof GscNotConnectedError) return "No Search Console property is linked to this project.";
+  if (e instanceof GoogleTokenError) return "The Search Console link has lapsed or was withdrawn. Reconnect to carry on.";
   if (e instanceof GoogleApiError) {
-    if (e.status === 401 || e.status === 403) return "Search Console denied access to this property (no verified permission, or the connection was revoked).";
-    if (e.status === 429) return "Search Console rate limit reached. Retry shortly.";
-    if (e.status === 404) return "Search Console property not found. It may have been removed in Search Console.";
-    return `Search Console API error (${e.status}): ${e.body.slice(0, 300)}`;
+    if (e.status === 401 || e.status === 403) return "Search Console refused access to this property (permission is not verified, or access was withdrawn).";
+    if (e.status === 429) return "Search Console is limiting requests; try again in a little while.";
+    if (e.status === 404) return "That Search Console property was not found; it may have been deleted there.";
+    return `Search Console API failure (${e.status}): ${e.body.slice(0, 300)}`;
   }
   return e instanceof Error ? e.message : String(e);
 }
@@ -84,10 +84,10 @@ export async function listGscSites(ctx: Ctx) {
 export async function setGscSite(ctx: Ctx, projectId: string, i: { grantId: string; siteUrl: string }) {
   getProject(ctx, projectId);
   const grant = ctx.db.prepare("SELECT id, email FROM google_grants WHERE id=? AND provider='gsc'").get(i.grantId) as { id: string; email: string | null } | undefined;
-  if (!grant) throw new AppError("NOT_FOUND", "That Google account isn't connected.");
+  if (!grant) throw new AppError("NOT_FOUND", "That Google account is not linked.");
   const match = (await sites(ctx, grant.id)).find((s) => s.siteUrl === i.siteUrl);
-  if (!match) throw new AppError("NOT_FOUND", "That Search Console property isn't available on your connected Google account.");
-  if (match.permissionLevel === "siteUnverifiedUser") throw new AppError("VALIDATION_ERROR", "You don't have verified access to that Search Console property.");
+  if (!match) throw new AppError("NOT_FOUND", "The linked Google account has no access to that Search Console property.");
+  if (match.permissionLevel === "siteUnverifiedUser") throw new AppError("VALIDATION_ERROR", "Your access to that Search Console property is not verified.");
   ctx.db.prepare("INSERT INTO gsc_connections (project_id,site_url,grant_id,connected_email,created_at) VALUES (?,?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET site_url=excluded.site_url, grant_id=excluded.grant_id, connected_email=excluded.connected_email")
     .run(projectId, i.siteUrl, grant.id, grant.email, nowIso());
   return getGscConnection(ctx, projectId)!;
@@ -105,7 +105,7 @@ export async function getGscPerformance(ctx: Ctx, projectId: string, input: Perf
 
 export type UrlInspectionResult = Record<string, any>;
 
-/** Inspect up to 10 URLs against the connected property; a bad URL is reported inline and does not fail the batch. */
+/** Inspects up to 10 URLs on the linked property; a URL that fails is reported alongside the others instead of aborting the batch. */
 export async function inspectUrls(ctx: Ctx, projectId: string, i: { urls: string[]; languageCode?: string }) {
   const c = getGscConnection(ctx, projectId);
   if (!c) throw new GscNotConnectedError();

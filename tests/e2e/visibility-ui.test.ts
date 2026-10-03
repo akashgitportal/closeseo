@@ -78,7 +78,7 @@ test("one model that cannot take the chosen country is explained, the others sti
   await page.locator('input[name="m"][value="perplexity"]').uncheck();
   await page.click('button:has-text("Ask")');
   await page.waitForSelector(".result .err", { timeout: 15000 });
-  assert.match((await page.textContent(".result .err"))!, /Gemini doesn’t support country selection/);
+  assert.match((await page.textContent(".result .err"))!, /Gemini has no country setting/);
 });
 
 test("brand lookup with a competitor: totals, share of voice, cited pages, questions", async () => {

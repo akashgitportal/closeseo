@@ -33,7 +33,7 @@ export function startAudit(
 ) {
   getProject(ctx, projectId);
   if (i.renderJavaScript)
-    throw new AppError("VALIDATION_ERROR", "JavaScript rendering is not supported in this release; run the audit without renderJavaScript");
+    throw new AppError("VALIDATION_ERROR", "Audits cannot render JavaScript in this version; start the audit without renderJavaScript");
   const target = assertCrawlableUrl(/^[a-z][a-z0-9+.-]*:\/\//i.test(i.url) ? i.url : `https://${i.url}`, ctx.config.allowPrivateAuditTargets);
   const startUrl = normalizeUrl(target.href)!;
   const maxPages = Math.min(HARD_MAX_PAGES, Math.max(1, i.maxPages ?? DEFAULT_MAX_PAGES));
@@ -127,7 +127,7 @@ export function getAuditStatus(ctx: Ctx, projectId: string, auditId?: string) {
   const a = auditId
     ? audit(ctx, projectId, auditId)
     : (ctx.db.prepare("SELECT * FROM audits WHERE project_id=? ORDER BY started_at DESC, rowid DESC LIMIT 1").get(projectId) as AuditRow | undefined);
-  if (!a) throw new AppError("NOT_FOUND", "No audits exist for this project yet. Start one with run_site_audit.");
+  if (!a) throw new AppError("NOT_FOUND", "This project has no audits yet; begin one with run_site_audit");
   return { status: present(ctx, a) };
 }
 
@@ -143,7 +143,7 @@ function resolveAuditId(ctx: Ctx, projectId: string, auditId?: string): string {
   getProject(ctx, projectId);
   if (auditId) return audit(ctx, projectId, auditId).id;
   const r = ctx.db.prepare("SELECT id FROM audits WHERE project_id=? ORDER BY started_at DESC, rowid DESC LIMIT 1").get(projectId) as { id: string } | undefined;
-  if (!r) throw new AppError("NOT_FOUND", "No audits exist for this project yet. Start one with run_site_audit.");
+  if (!r) throw new AppError("NOT_FOUND", "This project has no audits yet; begin one with run_site_audit");
   return r.id;
 }
 

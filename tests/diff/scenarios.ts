@@ -16,10 +16,11 @@ const proj = async (s: Side, tag: string, extra: Record<string, unknown> = {}) =
   if (r.isError) throw new Error(`create_project failed on ${s.name}: ${r.text}`);
   return (r.data as any).project.id as string;
 };
-const out = (r: Result) => ({ isError: r.isError, text: r.isError ? r.text : undefined, data: r.data });
-const dataOnly = (r: Result) => ({ isError: r.isError, data: r.data, ...(r.isError ? { text: r.text } : {}) });
-/** Only compare success/failure and the error text (for validation scenarios whose wording is the contract). */
-const verdict = (r: Result) => ({ isError: r.isError, text: r.isError ? r.text : "ok" });
+/** Wording is deliberately not compared: closeseo words its messages independently. Success/failure and structured data are. */
+const out = (r: Result) => ({ isError: r.isError, data: r.data });
+const dataOnly = (r: Result) => ({ isError: r.isError, data: r.data });
+/** Only compare success/failure (validation wording is closeseo's own). */
+const verdict = (r: Result) => ({ isError: r.isError });
 /** Order-insensitive view of saved-keyword rows (the SOURCE does not define an order among rows saved together). */
 const sortedRows = (v: any) => (v?.data?.rows ? { ...v, data: { ...v.data, rows: [...v.data.rows].sort((a: any, b: any) => (a.keyword < b.keyword ? -1 : 1)) } } : v);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -40,7 +41,6 @@ export const SCENARIOS: Scenario[] = [
       return {
         create_with_url_domain: out(a), create_trimmed_name_de_market: out(b), create_explicit_language: out(c),
         list_filtered: { count: mine.length, names: mine.map((p: any) => p.name), rows: mine.map(({ id: _i, url: _u, organizationId: _o, organization: _g, ...rest }: any) => rest) },
-        list_text_has_header: /^Projects \(\d+\):/.test(list.text),
         err_empty_name: verdict(await s.call("create_project", { name: "" })),
         err_long_name: verdict(await s.call("create_project", { name: "x".repeat(121) })),
         err_language_without_location: verdict(await s.call("create_project", { name: "x", languageCode: "fr" })),

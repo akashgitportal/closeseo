@@ -83,11 +83,11 @@ export async function getBacklinksOverview(ctx: Ctx, projectId: string, i: { tar
     } catch (e) { unavailable.push(`referring-domain breakdown (${(e as Error).message})`); }
   }
   const scopeNote =
-    t.scope === "domain" ? "Summary excludes subdomains; trend data includes subdomains (provider limitation)."
-    : t.scope === "subfolder" ? "Counts are computed from filtered backlink totals; rank, trends, and the referring-domains breakdown aren't available for subfolders."
+    t.scope === "domain" ? "The summary leaves out subdomains, but the trend series includes them; the provider offers no way to align the two."
+    : t.scope === "subfolder" ? "Subfolder counts come from filtering the backlink list. Rank, trends and the referring-domain breakdown cannot be produced for a subfolder."
     : undefined;
   // Say what is missing instead of failing the whole overview after the summary was already paid for.
-  const partial = unavailable.length ? `Some details were unavailable and are omitted: ${unavailable.join("; ")}. Run the overview again to fill them in.` : undefined;
+  const partial = unavailable.length ? `Part of the data could not be fetched and was left out: ${unavailable.join("; ")}. Run the overview again to fill the gap.` : undefined;
   const note = [scopeNote, partial].filter(Boolean).join(" ") || undefined;
   return { target: t.display, scope: t.scope, ...(note ? { scopeNote: note } : {}), overview, ...(referringDomains ? { referringDomains } : {}) };
 }

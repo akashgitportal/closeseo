@@ -35,14 +35,14 @@ test("edit: devices, depth and schedule change; the schedule anchor only moves w
 });
 
 test("edit validation and the duplicate guard", async () => {
-  for (const [body, re] of [[{ devices: "tablet" }, /devices/], [{ serpDepth: 15 }, /multiple of 10/], [{ serpDepth: 110 }, /multiple of 10/], [{ scheduleInterval: "hourly" }, /scheduleInterval/], [{ isActive: "no" }, /isActive/], [{ locationCode: -1 }, /locationCode/], [{ domain: "" }, /Invalid domain/], [{ scheduleInterval: "daily", scheduleTime: { hour: 1, minute: 0, timeZone: "Mars/Base" } }, /time zone/]] as [object, RegExp][]) {
+  for (const [body, re] of [[{ devices: "tablet" }, /devices/], [{ serpDepth: 15 }, /10, 20/], [{ serpDepth: 110 }, /10, 20/], [{ scheduleInterval: "hourly" }, /scheduleInterval/], [{ isActive: "no" }, /isActive/], [{ locationCode: -1 }, /locationCode/], [{ domain: "" }, /not a usable domain/], [{ scheduleInterval: "daily", scheduleTime: { hour: 1, minute: 0, timeZone: "Mars/Base" } }, /time zone/]] as [object, RegExp][]) {
     const r = await patch(body); assert.equal(r.status, 400, JSON.stringify(body)); assert.match((await r.json() as any).error.message, re);
   }
   assert.equal((await patch({ devices: "mobile" }, "nope")).status, 404);
   const other = (await c.tool("create_rank_tracker", { projectId: pid, domain: "other.com" })).structuredContent.config.id;
   const dup = await patch({ domain: "example.com" }, other);
   assert.equal(dup.status, 400);
-  assert.match((await dup.json() as any).error.message, /already being tracked/);
+  assert.match((await dup.json() as any).error.message, /already tracked/);
   assert.equal((await patch({ domain: "WWW.Other2.com/x" }, other)).status, 200);
 });
 

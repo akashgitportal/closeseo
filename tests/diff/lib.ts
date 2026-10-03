@@ -32,6 +32,8 @@ export function makeSide(name: Side["name"], base: string): Side {
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const TS = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g;
 const ORIGIN = /https?:\/\/127\.0\.0\.1:\d+/g;
+/** Prose that closeseo words independently; the codes and structured values around it are still compared. */
+const PROSE = new Set(["message", "scopeNote"]);
 const VOLATILE = new Set(["fetchedAt", "createdAt", "updatedAt", "startedAt", "completedAt", "lastCheckedAt", "checkedAt", "nextRunAt", "runId", "token"]);
 
 export function normalize(v: unknown): unknown {
@@ -39,7 +41,7 @@ export function normalize(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(normalize);
   if (v && typeof v === "object") {
     const o: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v as object)) o[k] = VOLATILE.has(k) && x !== null ? "<volatile>" : normalize(x);
+    for (const [k, x] of Object.entries(v as object)) o[k] = (VOLATILE.has(k) || PROSE.has(k)) && x !== null ? (PROSE.has(k) ? "<prose>" : "<volatile>") : normalize(x);
     return o;
   }
   return v;

@@ -1,13 +1,23 @@
 # Third-party notices
 
-## every-app/open-seo (MIT)
+## every-app/open-seo (MIT) — compatibility acknowledgement
 
-closeseo is an independent implementation written to be behaviourally compatible with
-[every-app/open-seo](https://github.com/every-app/open-seo) (v0.1.10, commit db8bde1).
-The server code in `src/` was written from scratch; it does not reuse that project's source files.
+closeseo is an independent implementation, built to be behaviourally compatible with
+[every-app/open-seo](https://github.com/every-app/open-seo) (v0.1.10, commit db8bde1). It does not include that project's source files.
 
-A small amount of **interface and reference data** derived from that project is included so that agents,
-skills and clients built for it keep working. It is covered by the original MIT licence:
+**Status of this branch (`independent-rewrite`).** The prose and reference data that earlier versions took from that project were
+rewritten or rebuilt from public sources: all tool and parameter descriptions and titles, error and result wording, the assistant
+prompt, the country/language table (rebuilt from DataForSEO's public endpoints, Unicode CLDR and the IANA ISO 3166 list) and the
+web-search country lists (public DataForSEO documentation). The author of this rewrite had read the original source beforehand, so
+this is **not a clean-room implementation**, and an automated check still finds overlapping short phrases (mostly unavoidable code
+terms, API values and field names).
+
+What deliberately remains the same, because compatibility with existing agents and skills depends on it:
+* MCP tool **names**, input-parameter **names, types, enums, bounds and defaults**, and structured result **field names** (`src/mcp/tool-schemas.json`, `tests/golden/mcp-tools-list.json`; only the prose in them is new).
+* Behavioural rules and numbers where the same result is required: pricing and credit formulas, rank-check and scheduling rules, issue severities, GA4/GSC report definitions, scoring formulas and thresholds, local rank-grid geometry, AI-visibility caching and shaping rules.
+
+Whether that residue needs attribution is a legal question for the organisation using this code. The original is MIT-licensed; if any
+of it is treated as derived, the licence only requires keeping this notice with it:
 
 > MIT License — Copyright (c) 2026 Ben Senescu
 >
@@ -25,19 +35,8 @@ skills and clients built for it keep working. It is covered by the original MIT 
 > CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 > IN THE SOFTWARE.
 
-Files containing that derived data:
-
-| File | What it is |
-|------|-----------|
-| `src/mcp/tool-schemas.json`, `tests/golden/mcp-tools-list.json` | The MCP tool names, descriptions and JSON Schemas (the public agent contract). |
-| `src/data/web-search-countries.json` | The ISO country codes DataForSEO accepts for LLM web search, and the subset Claude supports. |
-| `src/data/markets.json` | Country / DataForSEO location-code / language / Labs-vs-Google-Ads coverage table. |
-| Error-message wording and result field names | Reproduced where agents or skills may depend on them. |
-| Assistant system prompt and tool rules (`src/agent/*`) | Written independently; behaviour rules (never state unsourced metrics, ask before paid batches) follow the original's documented intent. |
-| Google report definitions, scoring formula and result shapes (`services/ga4.ts`, `services/gsc.ts`) | Written independently from the behaviour of the original; the scoring formula and field names are the compatibility surface. |
-
-**Not copied:** the marketing site, blog and docs content, images, logos, the "OpenSEO" name and branding, agent-skill text.
-Rewriting code does not remove trademark or branding obligations: use your own product name if you redistribute this.
+**Not used:** the marketing site, blog and docs content, images, logos, the "OpenSEO" name and branding, agent-skill text.
+Use your own product name if you redistribute this.
 
 ## npm dependencies
 

@@ -9,7 +9,7 @@ export function isValidTimeZone(tz: string): boolean {
   try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
 }
 
-/** The chosen wall-clock time re-expressed in UTC using the zone's offset right now; reports how many days that moved. */
+/** Converts a local clock time to UTC using the zone's current offset, and says whether the date shifts by a day. */
 function toUtcTime(t: ScheduleTime, now: number) {
   if (!t.timeZone) return { weekday: t.weekday, hour: t.hour, minute: t.minute, dayShift: 0 };
   const f = new Intl.DateTimeFormat("en-US", { timeZone: t.timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
@@ -25,7 +25,7 @@ function toUtcTime(t: ScheduleTime, now: number) {
 
 const monthEnd = (year: number, month: number, dayShift: number, hour: number, minute: number) => new Date(Date.UTC(year, month + 1, dayShift, hour, minute));
 
-/** Read the day shift of a stored monthly anchor back off its date: +1 (the 1st), -1 (day before last), or 0 (last day). */
+/** Recovers the day shift from a stored monthly anchor: +1 means the 1st, -1 the day before month end, 0 month end. */
 function monthlyDayShift(anchor: Date): number {
   if (anchor.getUTCDate() === 1) return 1;
   const last = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + 1, 0)).getUTCDate();
@@ -33,10 +33,10 @@ function monthlyDayShift(anchor: Date): number {
 }
 
 /**
- * Next check time for a scheduled tracker. With `previous` it advances from that anchor by the interval until
- * it is in the future (no drift when runs are late). Otherwise the first check lands on the chosen time, or on a
- * random hour (04-09 UTC) and minute that spreads load across scheduler ticks. Monthly checks run on the last day
- * of the month in the user's zone.
+ * When a scheduled tracker is next due. Given `previous`, step forward from that anchor one interval at a time
+ * until the result is in the future, so late runs do not shift the schedule. Without it, use the requested time
+ * or pick a random slot between 04:00 and 09:59 UTC to spread the load. Monthly checks fall on the final day of
+ * the month in the user's own time zone.
  */
 export function computeNextCheckAt(
   interval: ScheduledInterval, previous?: string | null, chosen?: ScheduleTime, now = Date.now(), rand: () => number = Math.random,

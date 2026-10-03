@@ -60,7 +60,7 @@ test("errors from the provider show inside the chat instead of breaking the page
   await page.locator("nav.tabs a", { hasText: "Assistant" }).click(); await page.waitForSelector("#chat-input");
   or.script({ http: 402 });
   await page.fill("#chat-input", "another question"); await page.click("#chat-send");
-  await page.waitForSelector(".bubble.err:has-text('out of credit')");
+  await page.waitForSelector(".bubble.err:has-text('no credit left')");
   assert.equal(await page.isEnabled("#chat-send"), true, "the form is usable again");
   await page.reload(); await page.waitForSelector("#chat-input");
   assert.ok((await page.locator(".bubble.user").count()) >= 1, "the earlier chat is still there after a reload");

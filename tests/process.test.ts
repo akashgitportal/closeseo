@@ -61,7 +61,7 @@ test("port already in use fails fast instead of hanging", async () => {
 test("startup warns about an exposed unauthenticated admin and missing API key", async () => {
   const PORT = String(port());
   const a = boot({ PORT, HOST: "0.0.0.0", DATABASE_PATH: join(dir, "warn.db"), DATAFORSEO_API_KEY: "" });
-  await until(() => a.out().includes("WARNING: local_noauth") && a.out().includes("DATAFORSEO_API_KEY is not set"), 10000);
-  assert.match(a.out(), /DATAFORSEO_API_KEY is not set/); assert.match(a.out(), /WARNING: local_noauth on a non-loopback host/);
+  await until(() => a.out().includes("WARNING: local_noauth") && a.out().includes("No DATAFORSEO_API_KEY configured"), 10000);
+  assert.match(a.out(), /No DATAFORSEO_API_KEY configured/); assert.match(a.out(), /WARNING: local_noauth is bound to a non-loopback address/);
   a.p.kill("SIGTERM"); await a.exited;
 });

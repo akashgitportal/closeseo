@@ -22,11 +22,11 @@ export function isValidDomainHost(host: string): boolean {
   return !p.isIp && !!p.publicSuffix && (p.isIcann === true || p.isPrivate === true);
 }
 
-const VALID_DOMAIN_MESSAGE = "Enter a valid domain like example.com";
+const VALID_DOMAIN_MESSAGE = "That does not look like a domain name (expected something like example.com)";
 
 export function parseResearchTarget(input: string, requested?: ResearchScope): ResearchTarget {
   const trimmed = input.trim();
-  if (!trimmed) throw new AppError("VALIDATION_ERROR", "Enter a domain or URL");
+  if (!trimmed) throw new AppError("VALIDATION_ERROR", "Give a domain or a page URL");
   const withProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
   let url: URL;
   try {
@@ -34,14 +34,14 @@ export function parseResearchTarget(input: string, requested?: ResearchScope): R
   } catch {
     throw new AppError("VALIDATION_ERROR", VALID_DOMAIN_MESSAGE);
   }
-  if (url.username || url.password) throw new AppError("VALIDATION_ERROR", "URLs with embedded credentials are not supported");
+  if (url.username || url.password) throw new AppError("VALIDATION_ERROR", "URLs that contain a username or password are not accepted");
   const urlHostname = url.hostname.toLowerCase();
   const hostname = urlHostname.replace(/^www\./, "");
   // The charset check rejects hosts like my_site.com that URL() accepts but DataForSEO bills and then fails.
   if (!hostname || !hostname.includes(".") || !/^[a-z\d.-]+$/.test(hostname) || !isValidDomainHost(hostname))
     throw new AppError("VALIDATION_ERROR", VALID_DOMAIN_MESSAGE);
   const path = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/, "");
-  if (requested === "subfolder" && path === "") throw new AppError("VALIDATION_ERROR", "Add a path to use Subfolder (e.g. example.com/blog)");
+  if (requested === "subfolder" && path === "") throw new AppError("VALIDATION_ERROR", "The subfolder scope needs a path, for example example.com/blog");
   const scope = requested ?? (path === "" ? "subdomains" : "subfolder");
   const usesPath = scope === "exact_url" || scope === "subfolder";
   return { scope, hostname, urlHostname, path, display: usesPath ? `${hostname}${path}` : hostname };

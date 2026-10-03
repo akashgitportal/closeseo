@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url);
 type ToolDef = { name: string; inputSchema: Record<string, unknown>; outputSchema?: Record<string, unknown> } & Record<string, unknown>;
 const SCHEMAS = require("./tool-schemas.json") as { tools: ToolDef[] };
 
-// useDefaults mirrors schema defaults (e.g. pageSize 50). Unknown keys are only rejected where the SOURCE schema says additionalProperties:false.
+// useDefaults mirrors schema defaults (e.g. pageSize 50). Unknown keys are rejected only where the tool schema sets additionalProperties:false.
 const ajv = new Ajv2020.default({ strict: false, allErrors: true, verbose: true, useDefaults: true, coerceTypes: false });
 addFormats.default(ajv);
 const validators = new Map(SCHEMAS.tools.map((t) => [t.name, ajv.compile(t.inputSchema)]));
@@ -35,16 +35,19 @@ export function listTools() {
   return SCHEMAS.tools;
 }
 
+/** A failed tool call: readable text plus a machine-readable code in `_meta` (the REST bridge maps it to an HTTP status). */
+const fail = (text: string, errorCode: string) => ({ content: [{ type: "text", text }], isError: true, _meta: { errorCode } });
+
 async function callTool(ctx: Ctx, baseUrl: string, name: string, args: Record<string, unknown>, clientLabel?: string) {
   const handler = HANDLERS[name];
   const validate = validators.get(name);
   if (!handler || !validate) return null;
   const input = { ...args };
   if (!validate(input)) {
-    return { content: [{ type: "text", text: formatValidationError(name, validate.errors ?? []) }], isError: true };
+    return fail(formatValidationError(name, validate.errors ?? []), "INVALID_INPUT");
   }
   const extra = extraRuleError(name, input, isSupportedLanguageCode);
-  if (extra) return { content: [{ type: "text", text: extra }], isError: true };
+  if (extra) return fail(extra, "INVALID_INPUT");
   try {
     const out = await handler(ctx, input, { baseUrl, clientLabel });
     const meta: Record<string, unknown> = {};
@@ -56,9 +59,9 @@ async function callTool(ctx: Ctx, baseUrl: string, name: string, args: Record<st
       structuredContent: { ...out.data, ...(Object.keys(meta).length ? { meta } : {}) },
     };
   } catch (e) {
-    if (e instanceof AppError) return { content: [{ type: "text", text: e.message }], isError: true };
+    if (e instanceof AppError) return fail(e.message, e.code);
     console.error("mcp tool failure", name, e);
-    return { content: [{ type: "text", text: "INTERNAL_ERROR" }], isError: true };
+    return fail("The server hit an unexpected problem while running this tool. Details are in the server log.", "INTERNAL_ERROR");
   }
 }
 
@@ -90,7 +93,7 @@ export async function handleRpc(ctx: Ctx, baseUrl: string, msg: Rpc, clientLabel
       const callArgs = (msg.params?.arguments as Record<string, unknown>) ?? {};
       const pid = typeof callArgs.projectId === "string" ? callArgs.projectId : undefined;
       const result = await withUsage({ projectId: pid }, () => callTool(ctx, baseUrl, name, callArgs, clientLabel));
-      if (!result) return err(msg.id, -32602, `Tool ${name} not found`);
+      if (!result) return err(msg.id, -32602, `No tool is named ${name}`);
       return { jsonrpc: "2.0", id: msg.id ?? null, result };
     }
     default:

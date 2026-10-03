@@ -20,7 +20,7 @@ const STATE_TTL_MS = 10 * 60_000;
 const SKEW_MS = 5_000;
 const b64u = (b: Buffer) => b.toString("base64url");
 
-/** Google features need an OAuth client and a secret to encrypt stored tokens. */
+/** Using Google requires an OAuth client plus a secret for encrypting saved tokens. */
 export function googleConfigured(ctx: Ctx): boolean {
   const c = ctx.config;
   return Boolean(c.googleClientId && c.googleClientSecret && c.appSecret && c.appSecret.length >= 32);
@@ -28,15 +28,15 @@ export function googleConfigured(ctx: Ctx): boolean {
 
 export function assertGoogleConfigured(ctx: Ctx) {
   if (!googleConfigured(ctx))
-    throw new AppError("NOT_CONFIGURED", "Google integrations need GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and CLOSESEO_SECRET (at least 32 characters).");
+    throw new AppError("NOT_CONFIGURED", "To use Google, set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and CLOSESEO_SECRET (32 characters or more).");
 }
 
-/** Map a Google API host to its base URL (rerouted through one origin in tests). */
+/** Base URL for a Google API host; tests send every host through a single stand-in origin. */
 export function apiBase(ctx: Ctx, host: string): string {
   return ctx.config.googleApiOrigin ? `${ctx.config.googleApiOrigin}/${host}` : `https://${host}`;
 }
 
-/** Build the consent URL. State is single-use, expires in 10 minutes and is bound to a project and provider; PKCE (S256) is always on. */
+/** Creates the consent URL. The state value works once, lapses after 10 minutes and is tied to one project and provider; PKCE (S256) is always used. */
 export function startAuthorization(ctx: Ctx, provider: GoogleProvider, projectId: string, publicOrigin: string): { url: string } {
   assertGoogleConfigured(ctx);
   if (!ctx.db.prepare("SELECT 1 FROM projects WHERE id=?").get(projectId)) throw new AppError("NOT_FOUND", "NOT_FOUND");
@@ -67,24 +67,24 @@ async function tokenRequest(ctx: Ctx, params: Record<string, string>): Promise<T
     signal: AbortSignal.timeout(20_000),
   });
   const body = (await res.json().catch(() => ({}))) as TokenResponse;
-  if (!res.ok || !body.access_token) throw new GoogleTokenError(body.error_description ?? body.error ?? `Google token endpoint returned HTTP ${res.status}`, body.error);
+  if (!res.ok || !body.access_token) throw new GoogleTokenError(body.error_description ?? body.error ?? `Google's token endpoint answered HTTP ${res.status}`, body.error);
   return body;
 }
 
 export type CallbackResult = { provider: GoogleProvider; projectId: string; grantId: string; email: string | null };
 
-/** Finish consent: consume the state (one use only), exchange the code, verify the scope, store the encrypted grant. */
+/** Completes consent: spends the state value, swaps the code for tokens, checks the granted scope and saves the grant encrypted. */
 export async function completeAuthorization(ctx: Ctx, provider: GoogleProvider, params: { code: string | null; state: string | null }): Promise<CallbackResult> {
   assertGoogleConfigured(ctx);
-  if (!params.state || !params.code) throw new AppError("VALIDATION_ERROR", "Missing code or state");
+  if (!params.state || !params.code) throw new AppError("VALIDATION_ERROR", "The sign-in response is missing its code or state");
   const row = ctx.db.prepare("DELETE FROM google_oauth_states WHERE state=? AND provider=? AND expires_at > ? RETURNING project_id, code_verifier, redirect_uri").get(params.state, provider, Date.now()) as
     | { project_id: string; code_verifier: string; redirect_uri: string } | undefined;
-  if (!row) throw new AppError("VALIDATION_ERROR", "This sign-in link is invalid, already used, or expired. Start the connection again.");
+  if (!row) throw new AppError("VALIDATION_ERROR", "This sign-in link is unknown, has been used, or has timed out. Begin the connection again.");
   let tokens: TokenResponse;
   try {
     tokens = await tokenRequest(ctx, { grant_type: "authorization_code", code: params.code, redirect_uri: row.redirect_uri, code_verifier: row.code_verifier });
   } catch (e) {
-    throw new AppError("UPSTREAM_ERROR", `Google refused the sign-in: ${(e as Error).message}`);
+    throw new AppError("UPSTREAM_ERROR", `Google turned down the sign-in: ${(e as Error).message}`);
   }
   const granted = (tokens.scope ?? "").split(/\s+/);
   if (tokens.scope && !granted.includes(PROVIDERS[provider].required))
@@ -104,27 +104,27 @@ export async function completeAuthorization(ctx: Ctx, provider: GoogleProvider, 
 
 async function userInfo(ctx: Ctx, accessToken: string): Promise<{ sub: string; email: string | null }> {
   const res = await fetch(`${apiBase(ctx, "openidconnect.googleapis.com")}/v1/userinfo`, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(20_000) });
-  if (!res.ok) throw new AppError("UPSTREAM_ERROR", "Could not read the Google account profile");
+  if (!res.ok) throw new AppError("UPSTREAM_ERROR", "The Google account profile could not be fetched");
   const j = (await res.json()) as { sub?: string; email?: string };
-  if (!j.sub) throw new AppError("UPSTREAM_ERROR", "Google did not return an account id");
+  if (!j.sub) throw new AppError("UPSTREAM_ERROR", "Google sent no account identifier");
   return { sub: j.sub, email: j.email ?? null };
 }
 
 const refreshing = new Map<string, Promise<string>>();
 
-/** A valid access token for a grant, refreshed (and re-stored) when it is about to expire. Concurrent callers share one refresh. */
+/** Returns a usable access token for a grant, renewing and re-saving it shortly before expiry; simultaneous callers share one renewal. */
 export function getAccessToken(ctx: Ctx, grantId: string): Promise<string> {
   const row = ctx.db.prepare("SELECT access_token_enc, refresh_token_enc, expires_at FROM google_grants WHERE id=?").get(grantId) as
     | { access_token_enc: string; refresh_token_enc: string | null; expires_at: number } | undefined;
-  if (!row) return Promise.reject(new GoogleTokenError("The Google connection no longer exists."));
+  if (!row) return Promise.reject(new GoogleTokenError("This Google connection has been removed."));
   const secret = ctx.config.appSecret;
   if (!secret) return Promise.reject(new GoogleTokenError("CLOSESEO_SECRET is not set, so stored Google tokens cannot be read."));
   try {
     if (row.expires_at - SKEW_MS > Date.now()) return Promise.resolve(decrypt(secret, row.access_token_enc));
   } catch (e) {
-    return Promise.reject(new GoogleTokenError("Stored Google tokens cannot be decrypted (was CLOSESEO_SECRET changed?).", e));
+    return Promise.reject(new GoogleTokenError("The saved Google tokens cannot be decrypted; has CLOSESEO_SECRET changed?", e));
   }
-  if (!row.refresh_token_enc) return Promise.reject(new GoogleTokenError("The Google connection expired and has no refresh token. Reconnect it."));
+  if (!row.refresh_token_enc) return Promise.reject(new GoogleTokenError("The Google connection has lapsed and holds no refresh token. Connect it again."));
   const inflight = refreshing.get(grantId);
   if (inflight) return inflight;
   const p = (async () => {
@@ -134,7 +134,7 @@ export function getAccessToken(ctx: Ctx, grantId: string): Promise<string> {
         .run(encrypt(secret, t.access_token!), Date.now() + (t.expires_in ?? 3600) * 1000, t.refresh_token ? encrypt(secret, t.refresh_token) : null, nowIso(), grantId);
       return t.access_token!;
     } catch (e) {
-      throw new GoogleTokenError(`Google refused to refresh the connection${e instanceof Error ? ` (${e.message})` : ""}. Reconnect it.`, e);
+      throw new GoogleTokenError(`Google would not renew the connection${e instanceof Error ? ` (${e.message})` : ""}. Connect it again.`, e);
     } finally { refreshing.delete(grantId); }
   })();
   refreshing.set(grantId, p);
@@ -148,7 +148,7 @@ export class GoogleApiError extends Error {
   }
 }
 
-/** Authenticated JSON call to a Google API. Non-2xx responses become GoogleApiError with the status and body. */
+/** Makes an authenticated JSON request to a Google API; any non-2xx reply is raised as a GoogleApiError carrying status and body. */
 export async function googleJson<T>(ctx: Ctx, grantId: string, url: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const token = await getAccessToken(ctx, grantId);
   const hasBody = init?.body !== undefined;
@@ -156,10 +156,10 @@ export async function googleJson<T>(ctx: Ctx, grantId: string, url: string, init
     method: init?.method ?? "GET",
     headers: { Authorization: `Bearer ${token}`, ...(hasBody ? { "content-type": "application/json" } : {}) },
     body: hasBody ? JSON.stringify(init!.body) : undefined, signal: AbortSignal.timeout(60_000),
-  }).catch((e) => { throw new GoogleApiError(0, `Could not reach Google: ${(e as Error).message}`); });
+  }).catch((e) => { throw new GoogleApiError(0, `Google was unreachable: ${(e as Error).message}`); });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new GoogleApiError(res.status, `Google API error (${res.status})`, body.slice(0, 2000), Number(res.headers.get("retry-after")) || null);
+    throw new GoogleApiError(res.status, `Google API failure (${res.status})`, body.slice(0, 2000), Number(res.headers.get("retry-after")) || null);
   }
   return (await res.json()) as T;
 }
@@ -168,7 +168,7 @@ export function grantsFor(ctx: Ctx, provider: GoogleProvider) {
   return ctx.db.prepare("SELECT id, account_id, email FROM google_grants WHERE provider=? ORDER BY created_at").all(provider) as { id: string; account_id: string; email: string | null }[];
 }
 
-/** The user declined or Google reported an error: drop the state and say which project to return to. */
+/** Called when the user said no or Google reported a failure: discards the state and reports which project to go back to. */
 export function abandonAuthorization(ctx: Ctx, provider: GoogleProvider, state: string | null): string | null {
   if (!state) return null;
   const r = ctx.db.prepare("DELETE FROM google_oauth_states WHERE state=? AND provider=? RETURNING project_id").get(state, provider) as { project_id: string } | undefined;

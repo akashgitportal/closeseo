@@ -15,16 +15,16 @@ type Conn = { project_id: string; property_id: string; property_display_name: st
 export const getGa4Connection = (ctx: Ctx, projectId: string) => ctx.db.prepare("SELECT * FROM ga4_connections WHERE project_id=?").get(projectId) as Conn | undefined;
 const needConnection = (ctx: Ctx, projectId: string) => {
   const c = getGa4Connection(ctx, projectId);
-  if (!c) throw new Ga4ReportError("ga4_not_connected", "Google Analytics is not connected for this project.");
+  if (!c) throw new Ga4ReportError("ga4_not_connected", "No Google Analytics property is linked to this project.");
   return c;
 };
 
-// ---------------------------------------------------------------- Admin API (properties, health)
+// ---------------------------------------------------------------- Admin API: listing properties and checking access
 const admin = (ctx: Ctx) => `${apiBase(ctx, "analyticsadmin.googleapis.com")}/v1beta`;
 const adminAlpha = (ctx: Ctx) => `${apiBase(ctx, "analyticsadmin.googleapis.com")}/v1alpha`;
 const PROP = /^properties\/\d+$/;
 const propUrl = (ctx: Ctx, base: string, id: string, child: string) => {
-  if (!PROP.test(id)) throw new AppError("VALIDATION_ERROR", "Invalid Google Analytics property id");
+  if (!PROP.test(id)) throw new AppError("VALIDATION_ERROR", "That is not a valid Google Analytics property id");
   const u = new URL(`${base}/${id}/${child}`);
   u.searchParams.set("pageSize", "200");
   return u.toString();
@@ -56,10 +56,10 @@ export async function listGa4Properties(ctx: Ctx) {
 export async function setGa4Property(ctx: Ctx, projectId: string, i: { grantId: string; propertyId: string }) {
   getProject(ctx, projectId);
   const grant = ctx.db.prepare("SELECT id, email FROM google_grants WHERE id=? AND provider='ga4'").get(i.grantId) as { id: string; email: string | null } | undefined;
-  if (!grant) throw new AppError("NOT_FOUND", "That Google account isn't connected.");
+  if (!grant) throw new AppError("NOT_FOUND", "That Google account is not linked.");
   const listed = (await listGa4Properties(ctx)).accounts.find((a) => a.grantId === grant.id)?.properties ?? [];
-  if (!listed.some((p) => p.propertyId === i.propertyId)) throw new AppError("NOT_FOUND", "That Google Analytics property isn't available on your connected Google account.");
-  if (!PROP.test(i.propertyId)) throw new AppError("VALIDATION_ERROR", "Invalid Google Analytics property id");
+  if (!listed.some((p) => p.propertyId === i.propertyId)) throw new AppError("NOT_FOUND", "The linked Google account has no access to that Analytics property.");
+  if (!PROP.test(i.propertyId)) throw new AppError("VALIDATION_ERROR", "That is not a valid Google Analytics property id");
   const p = await googleJson<{ name: string; displayName: string; timeZone: string; currencyCode?: string }>(ctx, grant.id, `${admin(ctx)}/${i.propertyId}`);
   ctx.db.prepare(`INSERT INTO ga4_connections (project_id,property_id,property_display_name,property_time_zone,property_currency_code,grant_id,connected_email,created_at) VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(project_id) DO UPDATE SET property_id=excluded.property_id, property_display_name=excluded.property_display_name, property_time_zone=excluded.property_time_zone, property_currency_code=excluded.property_currency_code, grant_id=excluded.grant_id, connected_email=excluded.connected_email`)
@@ -70,18 +70,18 @@ export function disconnectGa4(ctx: Ctx, projectId: string) { ctx.db.prepare("DEL
 
 export function mapGa4Error(e: unknown): never {
   if (e instanceof Ga4ReportError) throw e;
-  if (e instanceof GoogleTokenError) throw new Ga4ReportError("ga4_reconnect_required", "The Google Analytics connection has expired or was revoked.");
-  if (e instanceof MalformedResponse) throw new Ga4ReportError("ga4_malformed_response", "Google Analytics returned an invalid report.");
+  if (e instanceof GoogleTokenError) throw new Ga4ReportError("ga4_reconnect_required", "The Google Analytics link has lapsed or was withdrawn.");
+  if (e instanceof MalformedResponse) throw new Ga4ReportError("ga4_malformed_response", "Google Analytics sent back a report that could not be read.");
   if (e instanceof GoogleApiError) {
-    if (e.status === 400) throw new Ga4ReportError("ga4_report_incompatible", "This report is not compatible with the selected Analytics property.");
-    if (e.status === 401) throw new Ga4ReportError("ga4_reconnect_required", "The Google Analytics connection has expired or was revoked.");
+    if (e.status === 400) throw new Ga4ReportError("ga4_report_incompatible", "The chosen Analytics property cannot produce this report.");
+    if (e.status === 401) throw new Ga4ReportError("ga4_reconnect_required", "The Google Analytics link has lapsed or was withdrawn.");
     if (e.status === 403) {
-      if (/SERVICE_DISABLED/.test(e.body)) throw new Ga4ReportError("ga4_upstream_unavailable", "The Google Analytics Data API is not enabled for this OAuth application.");
-      throw new Ga4ReportError("ga4_property_inaccessible", "The connected Google account can no longer access this property.");
+      if (/SERVICE_DISABLED/.test(e.body)) throw new Ga4ReportError("ga4_upstream_unavailable", "The Google Analytics Data API is switched off for this OAuth application.");
+      throw new Ga4ReportError("ga4_property_inaccessible", "The linked Google account has lost access to this property.");
     }
-    if (e.status === 404) throw new Ga4ReportError("ga4_property_inaccessible", "The selected Google Analytics property is no longer available.");
-    if (e.status === 429) throw new Ga4ReportError("ga4_quota_exhausted", "Google Analytics reporting quota is exhausted. Try again later.", e.retryAfterSeconds);
-    throw new Ga4ReportError("ga4_upstream_unavailable", "Google Analytics reporting is temporarily unavailable.");
+    if (e.status === 404) throw new Ga4ReportError("ga4_property_inaccessible", "The chosen Google Analytics property has gone away.");
+    if (e.status === 429) throw new Ga4ReportError("ga4_quota_exhausted", "The Google Analytics reporting quota has run out; try later.", e.retryAfterSeconds);
+    throw new Ga4ReportError("ga4_upstream_unavailable", "Google Analytics reporting is down for the moment.");
   }
   throw e;
 }
@@ -137,20 +137,20 @@ export function previousPeriod(r: { startDate: string; endDate: string }) {
 const validDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(`${v}T00:00:00.000Z`).toISOString().slice(0, 10) === v;
 
 export function resolveGa4DateRange(i: { startDate?: string; endDate?: string }, tz: string, now = new Date()) {
-  if (Boolean(i.startDate) !== Boolean(i.endDate)) throw new Ga4ReportError("validation_error", "Provide both startDate and endDate, or neither.");
+  if (Boolean(i.startDate) !== Boolean(i.endDate)) throw new Ga4ReportError("validation_error", "Give startDate and endDate together, or leave both out.");
   const requested = i.startDate && i.endDate ? { startDate: i.startDate, endDate: i.endDate } : null;
   if (requested && (!validDate(requested.startDate) || !validDate(requested.endDate) || requested.startDate > requested.endDate))
-    throw new Ga4ReportError("validation_error", "Dates must be valid YYYY-MM-DD values with startDate on or before endDate.");
+    throw new Ga4ReportError("validation_error", "Dates need the form YYYY-MM-DD, and startDate may not come after endDate.");
   const lastComplete = shiftDate(dateInZone(now, tz), -1);
   let endDate = requested?.endDate ?? lastComplete;
   const startDate = requested?.startDate ?? shiftDate(endDate, -27);
   const warnings: string[] = [];
   if (endDate > lastComplete) { endDate = lastComplete; warnings.push("end_date_clamped"); }
-  if (startDate > endDate) throw new Ga4ReportError("validation_error", "The resolved startDate is after the last complete Analytics day.");
+  if (startDate > endDate) throw new Ga4ReportError("validation_error", "The start date falls after the most recent complete Analytics day.");
   return { requestedDateRange: requested, resolvedDateRange: { startDate, endDate }, warnings };
 }
 
-// ---------------------------------------------------------------- report definitions
+// ---------------------------------------------------------------- what each report asks for
 export type ReportKind = "landing_pages" | "page_performance" | "key_events" | "traffic_acquisition" | "ecommerce_performance" | "site_search" | "audience_breakdown";
 export type ReportInput = {
   projectId?: string; kind: ReportKind; startDate?: string; endDate?: string; limit?: number; offset?: number; channel?: "organic_search" | "all";
@@ -218,7 +218,7 @@ function overviewRequest(i: { startDate: string; endDate: string; trend?: "daily
   };
 }
 
-// ---------------------------------------------------------------- response normalisation
+// ---------------------------------------------------------------- cleaning up API responses
 type Row = Record<string, string | number | null>;
 type Quota = Record<string, { consumed: number; remaining: number }>;
 type Normalized = { rows: Row[]; totalRowCount: number; reportMetadata: { dataLossFromOtherRow: boolean; subjectToThresholding: boolean; sampling: unknown[]; restrictedMetrics: { metricName: string; restrictedMetricTypes: string[] }[]; emptyReason: string | null; hasLimitedData: boolean }; quota: Quota | null };
@@ -250,7 +250,7 @@ function normalize(resp: any, req: RunRequest): Normalized {
 
 const run = (ctx: Ctx, c: Conn, req: RunRequest) => googleJson<any>(ctx, c.grant_id, `${apiBase(ctx, "analyticsdata.googleapis.com")}/v1beta/${c.property_id}:runReport`, { method: "POST", body: req });
 
-// ---------------------------------------------------------------- comparison + diagnostics
+// ---------------------------------------------------------------- previous-period comparison and diagnostics
 const COMPLETE_LIMIT = 1000;
 const num = (r: Row | undefined, m: string) => (typeof r?.[m] === "number" ? (r[m] as number) : null);
 export function comparisonValue(cur: number | null, prev: number | null) {
@@ -298,14 +298,14 @@ function enhancements(report: Normalized, i: ReportInput, dateRange: { startDate
     const diagnostics: Record<string, unknown>[] = [];
     const total = sum(report.rows, "sessions");
     const notSet = sum(report.rows.filter((r) => r.sessionSourceMedium === "(not set)"), "sessions");
-    if (total > 0 && notSet / total >= 0.05) diagnostics.push({ code: "attribution_not_set_share_high", severity: "warning", message: "A notable share of sessions has no source/medium attribution.", evidence: { sessions: notSet, totalSessions: total, share: notSet / total }, threshold: { share: 0.05 } });
+    if (total > 0 && notSet / total >= 0.05) diagnostics.push({ code: "attribution_not_set_share_high", severity: "warning", message: "Many sessions carry no source/medium attribution.", evidence: { sessions: notSet, totalSessions: total, share: notSet / total }, threshold: { share: 0.05 } });
     const internal = report.rows.filter((r) => typeof r.sessionSourceMedium === "string" && isInternalHost(r.sessionSourceMedium));
     const internalSessions = sum(internal, "sessions");
-    if (internalSessions > 0) diagnostics.push({ code: "internal_referral_traffic_detected", severity: "warning", message: "Local or private-network referral sources appear in acquisition data.", evidence: { sessions: internalSessions, sources: internal.map((r) => r.sessionSourceMedium) }, threshold: { sessions: 0 } });
+    if (internalSessions > 0) diagnostics.push({ code: "internal_referral_traffic_detected", severity: "warning", message: "Referrals from local or private-network hosts show up in the acquisition data.", evidence: { sessions: internalSessions, sources: internal.map((r) => r.sessionSourceMedium) }, threshold: { sessions: 0 } });
     const groups = new Map<string, Set<string>>();
     for (const r of report.rows) if (typeof r.sessionSourceMedium === "string") groups.set(r.sessionSourceMedium.toLowerCase(), (groups.get(r.sessionSourceMedium.toLowerCase()) ?? new Set()).add(r.sessionSourceMedium));
     const variantGroups = [...groups.values()].filter((v) => v.size > 1).map((v) => [...v]);
-    if (variantGroups.length) diagnostics.push({ code: "source_medium_case_variants_detected", severity: "info", message: "Source/medium values differ only by letter casing.", evidence: { variantGroups }, threshold: { variantGroups: 0 } });
+    if (variantGroups.length) diagnostics.push({ code: "source_medium_case_variants_detected", severity: "info", message: "Some source/medium values differ only in upper/lower case.", evidence: { variantGroups }, threshold: { variantGroups: 0 } });
     return { diagnostics, diagnosticCoverage: coverage };
   }
   if (i.kind === "ecommerce_performance") {
@@ -313,13 +313,13 @@ function enhancements(report: Normalized, i: ReportInput, dateRange: { startDate
     const metrics = breakdown === "item" ? ["itemsViewed", "itemsAddedToCart", "itemsPurchased", "itemRevenue"] : ["transactions", "purchaseRevenue"];
     const totals = Object.fromEntries(metrics.map((m) => [m, sum(report.rows, m)]));
     const status = activity(report, Object.values(totals).some((v) => v > 0));
-    const reason = status === "none" ? "No matching ecommerce activity was reported for this period and channel." : status === "unknown" ? "The fetched report is incomplete or limited, so ecommerce activity cannot be determined." : null;
+    const reason = status === "none" ? "No ecommerce activity matched this period and channel." : status === "unknown" ? "The report came back partial or sampled, so ecommerce activity cannot be judged." : null;
     return { diagnostics: status === "none" ? [{ code: "no_ecommerce_activity", severity: "info", message: reason, evidence: totals, threshold: { matchingActivity: 0 } }] : [], ecommerceActivity: { status, dateRange, channel: i.channel ?? "organic_search", breakdown, evidence: totals, reason } };
   }
   if (i.kind === "site_search") {
     const events = sum(report.rows, "eventCount");
     const status = activity(report, events > 0);
-    const reason = status === "none" ? "No measured site-search terms were reported for this period." : status === "unknown" ? "The fetched report is incomplete or limited, so site-search activity cannot be determined." : null;
+    const reason = status === "none" ? "No site-search terms were recorded for this period." : status === "unknown" ? "The report came back partial or sampled, so site-search activity cannot be judged." : null;
     return { diagnostics: status === "none" ? [{ code: "no_site_search_activity", severity: "info", message: reason, evidence: { searchTermCount: report.totalRowCount, searchEventCount: events }, threshold: { searchEvents: 0 } }] : [], siteSearchActivity: { status, dateRange, searchTermCount: report.totalRowCount, searchEventCount: events, reason } };
   }
   return { diagnostics: [] };
@@ -334,7 +334,7 @@ export async function runGa4Report(ctx: Ctx, projectId: string, input: ReportInp
   const channel = input.channel ?? "organic_search";
   const dr = resolveGa4DateRange(input, c.property_time_zone, opts.now);
   if (input.comparePreviousPeriod && !supportsComparison(input))
-    throw new Ga4ReportError("validation_error", "Previous-period comparison is only available for event key events, channel-group acquisition, device audiences, and new-versus-returning audiences.");
+    throw new Ga4ReportError("validation_error", "A comparison with the previous period works only for key events by event, acquisition by channel group, device audiences, and new-versus-returning audiences.");
   const complete = needsComplete(input);
   const d = definition(input);
   const dimensions = dimensionsFor(input, d.dimensions), metrics = [...d.metrics];
@@ -381,7 +381,7 @@ export async function getOrganicOverview(ctx: Ctx, projectId: string, input: { s
     const diagnostics: Record<string, unknown>[] = [];
     const cv = typeof current?.keyEvents === "number" ? current.keyEvents : null, pv = typeof previous?.keyEvents === "number" ? previous.keyEvents : null;
     if (!limited && cv != null && pv != null && pv >= 5 && (cv - pv) / pv <= -0.5)
-      diagnostics.push({ code: "key_events_sharp_decline", severity: "warning", message: "Organic key events declined sharply compared with the previous equal-length period.", evidence: { current: cv, previous: pv, percentChange: (cv - pv) / pv }, threshold: { minimumPreviousKeyEvents: 5, percentChange: -0.5 } });
+      diagnostics.push({ code: "key_events_sharp_decline", severity: "warning", message: "Organic key events dropped steeply against the previous period of equal length.", evidence: { current: cv, previous: pv, percentChange: (cv - pv) / pv }, threshold: { minimumPreviousKeyEvents: 5, percentChange: -0.5 } });
     return {
       status: "ok" as const,
       source: { provider: "google_analytics" as const, propertyId: c.property_id, propertyDisplayName: c.property_display_name },
@@ -416,7 +416,7 @@ export async function getSearchOpportunities(ctx: Ctx, projectId: string, input:
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Ga4ReportError("validation_error", "limit must be an integer from 1 to 100.");
   const ga4c = getGa4Connection(ctx, projectId);
   const gscc = getGscConnection(ctx, projectId);
-  if (!ga4c) throw new Ga4ReportError("ga4_not_connected", "Google Analytics is not connected for this project.");
+  if (!ga4c) throw new Ga4ReportError("ga4_not_connected", "No Google Analytics property is linked to this project.");
   if (!gscc) throw new GscNotConnectedError();
   const now = opts.now ?? new Date();
   const dates = !input.startDate && !input.endDate

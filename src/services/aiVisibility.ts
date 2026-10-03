@@ -10,8 +10,8 @@ import { isSupportedLanguageCode } from "./markets.ts";
 import { withUsage } from "./usage.ts";
 
 /**
- * AI visibility: ask several LLMs one question (Prompt Explorer) and measure how often a brand or domain is
- * mentioned and cited by AI search (Brand Lookup). Everything goes through DataForSEO's ai_optimization API.
+ * AI visibility. Prompt Explorer puts one question to several assistants; Brand Lookup counts how often AI search
+ * mentions or cites a brand or domain. Both use DataForSEO's ai_optimization endpoints.
  */
 
 const require = createRequire(import.meta.url);
@@ -23,7 +23,7 @@ export const MODEL_LABELS: Record<Model, string> = { chat_gpt: "ChatGPT", claude
 export const PROMPT_MAX = 500;
 export const BRAND_MAX = 250;
 const MAX_COMPETITORS = 5;
-const MAX_OUTPUT_TOKENS = 4096; // reasoning models spend hidden tokens against this budget
+const MAX_OUTPUT_TOKENS = 4096; // reasoning models burn part of this limit on hidden thinking
 const PROMPT_TTL_MS = 7 * 86_400_000;
 const BRAND_TTL_MS = 86_400_000;
 const CATALOG_TTL_MS = 3_600_000;
@@ -84,7 +84,7 @@ async function modelNames(ctx: Ctx, model: Model): Promise<string[]> {
   }
 }
 
-/** The model each provider will be asked, as DataForSEO currently lists them. */
+/** Which model will answer for each provider, according to DataForSEO's current catalogue. */
 export async function listModels(ctx: Ctx) {
   return Promise.all(MODELS.map(async (m) => ({ model: m, label: MODEL_LABELS[m], modelName: pickLatestModel(m, await modelNames(ctx, m)), webSearchCountries: m === "gemini" ? 0 : WEB_COUNTRIES[m].size })));
 }
@@ -128,7 +128,7 @@ type RawResponse = {
 };
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** Case-insensitive; word boundaries only on sides that end in a word character (so "C++" does not match "C+++"). */
+/** Case-insensitive match that applies a word boundary only on edges that are word characters, so "C++" is not found inside "C+++". */
 function mentionRegex(brand: string) {
   const lead = /^\w/.test(brand) ? "\\b" : `(?<!${esc(brand[0]!)})`;
   const trail = /\w$/.test(brand) ? "\\b" : `(?!${esc(brand[brand.length - 1]!)})`;
@@ -141,7 +141,7 @@ export function extractCitations(r: RawResponse): Omit<Citation, "matchedBrand">
   for (const item of r.items ?? []) {
     if (item.type !== "message") continue;
     for (const sec of item.sections ?? []) for (const a of sec.annotations ?? []) {
-      if (!isHttpUrl(a.url) || seen.has(a.url)) continue; // LLM output is untrusted: never keep javascript:/data: links
+      if (!isHttpUrl(a.url) || seen.has(a.url)) continue; // model output cannot be trusted, so javascript: and data: links are dropped
       seen.add(a.url);
       out.push({ url: a.url, domain: hostname(a.url), title: typeof a.title === "string" ? a.title : null });
     }
@@ -158,33 +158,33 @@ function applyBrand(res: Extract<ModelResult, { status: "success" }>, brand: str
 
 export function validatePromptInput(raw: Record<string, unknown>): Required<Pick<PromptInput, "prompt" | "models" | "webSearch">> & { highlightBrand: string | null; country: string | null } {
   const prompt = typeof raw.prompt === "string" ? raw.prompt.trim() : "";
-  if (!prompt) throw new AppError("VALIDATION_ERROR", "Enter a prompt to ask");
-  if (prompt.length > PROMPT_MAX) throw new AppError("VALIDATION_ERROR", `The prompt is too long (${prompt.length} characters; the limit is ${PROMPT_MAX}).`);
+  if (!prompt) throw new AppError("VALIDATION_ERROR", "Write a prompt to send to the models");
+  if (prompt.length > PROMPT_MAX) throw new AppError("VALIDATION_ERROR", `The prompt is ${prompt.length} characters, above the ${PROMPT_MAX} limit.`);
   if (!Array.isArray(raw.models) || raw.models.length < 1 || raw.models.length > 4 || raw.models.some((m) => !(MODELS as readonly unknown[]).includes(m)))
-    throw new AppError("VALIDATION_ERROR", `Choose 1 to 4 models from: ${MODELS.join(", ")}`);
+    throw new AppError("VALIDATION_ERROR", `Pick between one and four models out of: ${MODELS.join(", ")}`);
   const brandRaw = raw.highlightBrand === undefined || raw.highlightBrand === null ? "" : raw.highlightBrand;
-  if (typeof brandRaw !== "string") throw new AppError("VALIDATION_ERROR", "highlightBrand must be text");
+  if (typeof brandRaw !== "string") throw new AppError("VALIDATION_ERROR", "highlightBrand has to be text");
   const highlightBrand = brandRaw.trim() || null;
-  if (highlightBrand && highlightBrand.length > BRAND_MAX) throw new AppError("VALIDATION_ERROR", `The brand is too long (limit ${BRAND_MAX} characters).`);
-  if (raw.webSearch !== undefined && typeof raw.webSearch !== "boolean") throw new AppError("VALIDATION_ERROR", "webSearch must be true or false");
+  if (highlightBrand && highlightBrand.length > BRAND_MAX) throw new AppError("VALIDATION_ERROR", `That brand name exceeds ${BRAND_MAX} characters.`);
+  if (raw.webSearch !== undefined && typeof raw.webSearch !== "boolean") throw new AppError("VALIDATION_ERROR", "webSearch has to be true or false");
   const c = raw.webSearchCountryCode;
   if (c !== undefined && c !== null && c !== "default" && (typeof c !== "string" || !WEB_COUNTRIES.chat_gpt.has(c)))
-    throw new AppError("VALIDATION_ERROR", "webSearchCountryCode must be a two-letter country code such as US");
+    throw new AppError("VALIDATION_ERROR", "webSearchCountryCode has to be a two-letter country code like US");
   return { prompt, models: [...new Set(raw.models as Model[])], highlightBrand, webSearch: raw.webSearch !== false, country: typeof c === "string" && c !== "default" ? c : null };
 }
 
 export async function explorePrompt(ctx: Ctx, projectId: string, raw: Record<string, unknown>): Promise<PromptResult> {
   getProject(ctx, projectId);
-  if (!ctx.dfs.configured) throw new AppError("NOT_CONFIGURED", "DATAFORSEO_API_KEY is not set. AI visibility needs a DataForSEO key.");
+  if (!ctx.dfs.configured) throw new AppError("NOT_CONFIGURED", "AI visibility needs a DataForSEO key, and DATAFORSEO_API_KEY is empty.");
   const input = validatePromptInput(raw);
   const meter = { usd: 0 };
   return withUsage({ projectId, feature: "ai_visibility", meter }, async () => {
     const settled = await Promise.allSettled(input.models.map((m) => runModel(ctx, projectId, m, input)));
     const results: ModelResult[] = settled.map((s, i) => {
       if (s.status === "fulfilled") return s.value;
-      if (isAccountLevel(s.reason)) throw s.reason; // applies to every model, so show one clear error
+      if (isAccountLevel(s.reason)) throw s.reason; // this affects every model equally, so report it once
       console.error(`ai-visibility.prompt.${input.models[i]} failed:`, s.reason);
-      return { status: "error", model: input.models[i]!, errorCode: "UPSTREAM_ERROR", message: "This model is temporarily unavailable. Please try again." };
+      return { status: "error", model: input.models[i]!, errorCode: "UPSTREAM_ERROR", message: "This model could not be reached just now; try again shortly." };
     });
     const out: PromptResult = { id: newId(), prompt: input.prompt, highlightBrand: input.highlightBrand, fetchedAt: nowIso(), costUsd: meter.usd, results };
     if (results.some((r) => r.status === "success")) saveRun(ctx, projectId, "prompt", input.prompt, out);
@@ -196,8 +196,8 @@ async function runModel(ctx: Ctx, projectId: string, model: Model, input: Return
   const country = input.webSearch ? input.country : null;
   if (country && !supportsWebSearchCountry(model, country)) {
     const label = MODEL_LABELS[model];
-    const why = model === "gemini" ? `${label} doesn’t support country selection.` : `${label} doesn’t support ${country} as a search country.`;
-    return { status: "error", model, errorCode: "UNSUPPORTED_COUNTRY", message: `${why} Select “No country preference” above, then run again to include ${label}.` };
+    const why = model === "gemini" ? `${label} has no country setting for web search.` : `${label} cannot search from ${country}.`;
+    return { status: "error", model, errorCode: "UNSUPPORTED_COUNTRY", message: `${why} Choose “Any country” and run it again if you want ${label} included.` };
   }
   const modelName = pickLatestModel(model, await modelNames(ctx, model));
   const key = sha({ projectId, model, modelName, prompt: input.prompt.replace(/\s+/g, " "), webSearch: input.webSearch, country, v: 7 });
@@ -215,8 +215,8 @@ async function runModel(ctx: Ctx, projectId: string, model: Model, input: Return
     return r.result ?? ({} as RawResponse);
   };
   let raw = await fetchOnce();
-  // web_search only permits searching; models that cannot be forced often answer from memory with no citations.
-  // One paid retry raises the odds of a cited answer; a failed retry keeps the first (already paid) answer.
+  // Enabling web_search merely allows a search. Models that cannot be forced to search often reply from memory and cite nothing,
+  // so one extra paid attempt is made; if that attempt fails, the first (already paid for) reply is kept.
   if (input.webSearch && !raw.web_search) {
     const retried = await fetchOnce().catch(() => null);
     if (retried?.web_search) raw = retried;
@@ -288,24 +288,24 @@ export type BrandResult = {
 
 function validateBrandInput(raw: Record<string, unknown>, project: { locationCode: number; languageCode: string }) {
   const query = typeof raw.query === "string" ? raw.query.trim() : "";
-  if (!query) throw new AppError("VALIDATION_ERROR", "Enter a brand, domain or keyword");
-  if (query.length > BRAND_MAX) throw new AppError("VALIDATION_ERROR", `The brand is too long (limit ${BRAND_MAX} characters).`);
+  if (!query) throw new AppError("VALIDATION_ERROR", "Type a brand, domain or keyword");
+  if (query.length > BRAND_MAX) throw new AppError("VALIDATION_ERROR", `That brand name exceeds ${BRAND_MAX} characters.`);
   const compRaw = raw.competitors ?? [];
-  if (!Array.isArray(compRaw) || compRaw.some((c) => typeof c !== "string")) throw new AppError("VALIDATION_ERROR", "competitors must be a list of text values");
+  if (!Array.isArray(compRaw) || compRaw.some((c) => typeof c !== "string")) throw new AppError("VALIDATION_ERROR", "competitors has to be a list of text entries");
   const competitors = compRaw.map((c: string) => c.trim()).filter(Boolean);
-  if (competitors.some((c) => c.length > BRAND_MAX)) throw new AppError("VALIDATION_ERROR", `A competitor is too long (limit ${BRAND_MAX} characters).`);
-  if (new Set(competitors).size > MAX_COMPETITORS) throw new AppError("VALIDATION_ERROR", `Compare with at most ${MAX_COMPETITORS} competitors.`);
-  if (raw.scope !== undefined && raw.scope !== null && !(RESEARCH_SCOPES as readonly unknown[]).includes(raw.scope)) throw new AppError("VALIDATION_ERROR", `scope must be one of ${RESEARCH_SCOPES.join(", ")}`);
+  if (competitors.some((c) => c.length > BRAND_MAX)) throw new AppError("VALIDATION_ERROR", `A competitor name exceeds ${BRAND_MAX} characters.`);
+  if (new Set(competitors).size > MAX_COMPETITORS) throw new AppError("VALIDATION_ERROR", `No more than ${MAX_COMPETITORS} competitors can be compared at once.`);
+  if (raw.scope !== undefined && raw.scope !== null && !(RESEARCH_SCOPES as readonly unknown[]).includes(raw.scope)) throw new AppError("VALIDATION_ERROR", `scope has to be one of ${RESEARCH_SCOPES.join(", ")}`);
   const loc = raw.locationCode ?? project.locationCode;
-  if (typeof loc !== "number" || !Number.isInteger(loc) || loc <= 0) throw new AppError("VALIDATION_ERROR", "locationCode must be a positive whole number");
+  if (typeof loc !== "number" || !Number.isInteger(loc) || loc <= 0) throw new AppError("VALIDATION_ERROR", "locationCode has to be a positive whole number");
   const lang = raw.languageCode ?? project.languageCode;
-  if (typeof lang !== "string" || !isSupportedLanguageCode(lang)) throw new AppError("VALIDATION_ERROR", "Choose a supported language code such as en");
+  if (typeof lang !== "string" || !isSupportedLanguageCode(lang)) throw new AppError("VALIDATION_ERROR", "Use a supported language code, for instance en");
   return { query, competitors, scope: (raw.scope ?? undefined) as ResearchScope | undefined, locationCode: loc, languageCode: lang };
 }
 
 export async function brandLookup(ctx: Ctx, projectId: string, raw: Record<string, unknown>): Promise<BrandResult> {
   const project = getProject(ctx, projectId);
-  if (!ctx.dfs.configured) throw new AppError("NOT_CONFIGURED", "DATAFORSEO_API_KEY is not set. AI visibility needs a DataForSEO key.");
+  if (!ctx.dfs.configured) throw new AppError("NOT_CONFIGURED", "AI visibility needs a DataForSEO key, and DATAFORSEO_API_KEY is empty.");
   const input = validateBrandInput(raw, project);
   const detected = detectTarget(input.query);
 
@@ -322,7 +322,7 @@ export async function brandLookup(ctx: Ctx, projectId: string, raw: Record<strin
     seen.add(d.value.toLowerCase());
     competitors.push(d);
   }
-  if (competitors.length > MAX_COMPETITORS) throw new AppError("VALIDATION_ERROR", `Compare with at most ${MAX_COMPETITORS} competitors.`);
+  if (competitors.length > MAX_COMPETITORS) throw new AppError("VALIDATION_ERROR", `No more than ${MAX_COMPETITORS} competitors can be compared at once.`);
 
   const pageFilter = research && (research.scope === "exact_url" || research.scope === "subfolder") ? research : null;
   const resolvedTarget = research?.display ?? detected.value;
@@ -396,7 +396,7 @@ type ShapeArgs = {
 export function shapeBrand(a: ShapeArgs): BrandResult {
   const ok = a.bundles.filter((b): b is typeof b & { bundle: Bundle } => b.status === "success" && b.bundle !== null);
   const chatGptMatches = a.loc === CHATGPT_LOCATION && a.lang.toLowerCase().split(/[-_]/)[0] === CHATGPT_LANGUAGE;
-  // ChatGPT data is US/English only, so it is left out of totals, trend and share of voice for any other market.
+  // The ChatGPT figures only exist for US English, so for other markets they stay out of totals, trend and share of voice.
   const counted = (p: Platform) => chatGptMatches || p !== "chat_gpt";
 
   const perPlatform = a.bundles.map((b) => {
@@ -408,7 +408,7 @@ export function shapeBrand(a: ShapeArgs): BrandResult {
   const totalMentions = sum(totals.map((p) => p.mentions));
   const totalAiSearchVolume = sum(totals.map((p) => p.aiSearchVolume));
 
-  // cited sources: top pages with the questions that cited them
+  // cited sources: the most cited pages together with the questions that led to them
   const examples = new Map<string, Map<string, number | null>>();
   for (const b of ok) for (const m of b.bundle.mentions) {
     const q = typeof m.question === "string" ? trunc(m.question, 500) : "";
@@ -483,10 +483,10 @@ export function shapeBrand(a: ShapeArgs): BrandResult {
 function saveRun(ctx: Ctx, projectId: string, kind: "prompt" | "brand", query: string, payload: unknown) {
   try {
     ctx.db.prepare("INSERT INTO ai_runs (id,project_id,kind,query,payload,created_at) VALUES (?,?,?,?,?,?)").run(newId(), projectId, kind, trunc(query, 500), JSON.stringify(payload), nowIso());
-    // keep the newest 100 runs per project
+    // retain only the 100 most recent runs for each project
     ctx.db.prepare("DELETE FROM ai_runs WHERE project_id=? AND id NOT IN (SELECT id FROM ai_runs WHERE project_id=? ORDER BY created_at DESC, rowid DESC LIMIT 100)").run(projectId, projectId);
   } catch (e) {
-    // the project may have been deleted while the lookup was running; the result is still returned
+    // the project may have been removed while this ran; the result is still handed back
     console.warn("ai-visibility: could not save run", (e as Error).message);
   }
 }

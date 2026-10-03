@@ -22,7 +22,7 @@ type ReportRow = {
 export const reportUrl = (base: string, projectId: string, id: string) => `${base}/p/${projectId}/reports/${id}`;
 export const shareUrlFor = (base: string, token: string | null) => (token ? `${base}/s/${token}` : null);
 
-function row(ctx: Ctx, projectId: string, id: string, message = "NOT_FOUND"): ReportRow {
+function row(ctx: Ctx, projectId: string, id: string, message = "No report with that id exists in this project"): ReportRow {
   const r = ctx.db.prepare("SELECT * FROM reports WHERE id=? AND project_id=?").get(id, projectId) as ReportRow | undefined;
   if (!r) throw new AppError("NOT_FOUND", message);
   return r;
@@ -46,20 +46,20 @@ export function saveReport(
 ) {
   getProject(ctx, projectId);
   const title = i.title;
-  if (title.length > MAX_TITLE_CHARS) throw new AppError("VALIDATION_ERROR", `Title is ${fmt(title.length)} characters; the limit is ${fmt(MAX_TITLE_CHARS)}. Shorten it and save again.`);
-  if (i.summary.length > MAX_SUMMARY_CHARS) throw new AppError("VALIDATION_ERROR", `Summary is ${fmt(i.summary.length)} characters; the limit is ${fmt(MAX_SUMMARY_CHARS)}. Shorten it and save again.`);
+  if (title.length > MAX_TITLE_CHARS) throw new AppError("VALIDATION_ERROR", `The title has ${fmt(title.length)} characters but at most ${fmt(MAX_TITLE_CHARS)} are allowed. Shorten it and try again.`);
+  if (i.summary.length > MAX_SUMMARY_CHARS) throw new AppError("VALIDATION_ERROR", `The summary has ${fmt(i.summary.length)} characters but at most ${fmt(MAX_SUMMARY_CHARS)} are allowed. Shorten it and try again.`);
   const bytes = Buffer.byteLength(i.html);
-  if (bytes > MAX_HTML_BYTES) throw new AppError("VALIDATION_ERROR", `Report is ${kbUp(bytes)}; the limit is ${kbDown(MAX_HTML_BYTES)}. Inlined images are the usual cause. Remove them and save again.`);
+  if (bytes > MAX_HTML_BYTES) throw new AppError("VALIDATION_ERROR", `The report is ${kbUp(bytes)} but the ceiling is ${kbDown(MAX_HTML_BYTES)}. Embedded images are the usual reason; remove them and try again.`);
   // A cheap structural check: models sometimes stop mid-document, and updating in place would destroy the last good report.
   const trimmed = i.html.trim().toLowerCase();
   if (!trimmed.includes("<html") || !trimmed.endsWith("</html>"))
-    throw new AppError("VALIDATION_ERROR", "The HTML has no closing </html>; the model stopped early. On Codex, escape backticks and ${.");
+    throw new AppError("VALIDATION_ERROR", "The HTML never closes its <html> tag, so it was probably cut off while being written. Send the complete document.");
   if (i.templateId && !ctx.db.prepare("SELECT 1 FROM report_templates WHERE id=? AND project_id=?").get(i.templateId, projectId))
-    throw new AppError("NOT_FOUND", `No report template ${i.templateId} in this project. Call list_report_templates to see what exists.`);
+    throw new AppError("NOT_FOUND", `This project has no report template with id ${i.templateId}. list_report_templates shows the ones that exist.`);
   const existing = i.reportId ? row(ctx, projectId, i.reportId, `No report ${i.reportId} in this project. Call list_reports, or omit reportId to create a new one.`) : null;
   // Titles are unique within a project, which keeps the duplicate pointer unambiguous.
   const clash = ctx.db.prepare("SELECT id, title FROM reports WHERE project_id=? AND title=?").get(projectId, title) as { id: string; title: string } | undefined;
-  if (clash && clash.id !== existing?.id) throw new AppError("VALIDATION_ERROR", `A report titled '${clash.title}' exists (id ${clash.id}). Pass reportId to update it, or change the title.`);
+  if (clash && clash.id !== existing?.id) throw new AppError("VALIDATION_ERROR", `A report called "${clash.title}" already exists (id ${clash.id}). Pass reportId to overwrite it, or choose another title.`);
   const now = nowIso();
   if (i.reportId) {
     ctx.db.prepare("UPDATE reports SET title=?, summary=?, html=?, skill=COALESCE(?,skill), template_id=COALESCE(?,template_id), updated_at=? WHERE id=?")
@@ -67,7 +67,7 @@ export function saveReport(
     return { reportId: i.reportId, title, created: false, htmlBytes: bytes, url: reportUrl(base, projectId, i.reportId) };
   }
   const n = Number((ctx.db.prepare("SELECT COUNT(*) AS n FROM reports WHERE project_id=?").get(projectId) as { n: number }).n);
-  if (n >= MAX_REPORTS) throw new AppError("VALIDATION_ERROR", `This project has ${fmt(MAX_REPORTS)} reports, the limit. Delete one from the Reports page.`);
+  if (n >= MAX_REPORTS) throw new AppError("VALIDATION_ERROR", `The project already holds the maximum of ${fmt(MAX_REPORTS)} reports. Delete one on the Reports page first.`);
   const id = newId();
   ctx.db.prepare("INSERT INTO reports (id,project_id,title,summary,html,skill,template_id,created_at,updated_at,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)")
     .run(id, projectId, title, i.summary, i.html, i.skill ?? null, i.templateId ?? null, now, now, createdBy);
@@ -90,7 +90,7 @@ export function getReport(ctx: Ctx, projectId: string, base: string, i: { report
 
 export function setReportSharing(ctx: Ctx, projectId: string, base: string, i: { reportId: string; public: boolean }) {
   const r = row(ctx, projectId, i.reportId, notFoundMsg(i.reportId));
-  if (i.public && !ctx.config.enablePublicSharing) throw new AppError("VALIDATION_ERROR", "Public sharing is disabled on this server. Set ENABLE_PUBLIC_SHARING=1 to allow share links.");
+  if (i.public && !ctx.config.enablePublicSharing) throw new AppError("VALIDATION_ERROR", "Public share links are switched off on this server. Start it with ENABLE_PUBLIC_SHARING=1 to allow them.");
   let token = r.share_token;
   if (i.public && !token) token = randomBytes(24).toString("base64url");
   if (!i.public) token = null;
@@ -120,16 +120,16 @@ export function listReportTemplates(ctx: Ctx, projectId: string) {
 export function saveReportTemplate(ctx: Ctx, projectId: string, base: string, i: { templateId?: string; name: string; description: string; instructions: string }) {
   getProject(ctx, projectId);
   const name = i.name.trim();
-  if (!name || name.length > 120) throw new AppError("VALIDATION_ERROR", "Template name must be 1-120 characters");
+  if (!name || name.length > 120) throw new AppError("VALIDATION_ERROR", "A template name needs 1 to 120 characters");
   const url = `${base}/p/${projectId}/reports/templates`;
   const now = nowIso();
   if (i.templateId) {
-    if (!ctx.db.prepare("SELECT 1 FROM report_templates WHERE id=? AND project_id=?").get(i.templateId, projectId)) throw new AppError("NOT_FOUND", `No report template ${i.templateId} in this project. Call list_report_templates to see what exists.`);
+    if (!ctx.db.prepare("SELECT 1 FROM report_templates WHERE id=? AND project_id=?").get(i.templateId, projectId)) throw new AppError("NOT_FOUND", `This project has no report template with id ${i.templateId}. list_report_templates shows the ones that exist.`);
     ctx.db.prepare("UPDATE report_templates SET name=?, description=?, instructions=?, updated_at=? WHERE id=?").run(name, i.description, i.instructions, now, i.templateId);
     return { templateId: i.templateId, name, created: false, url };
   }
   const n = Number((ctx.db.prepare("SELECT COUNT(*) AS n FROM report_templates WHERE project_id=?").get(projectId) as { n: number }).n);
-  if (n >= MAX_TEMPLATES) throw new AppError("VALIDATION_ERROR", `This project has ${MAX_TEMPLATES} report templates, the limit. Delete one first.`);
+  if (n >= MAX_TEMPLATES) throw new AppError("VALIDATION_ERROR", `The project already holds the maximum of ${MAX_TEMPLATES} report templates. Delete one first.`);
   const id = newId();
   ctx.db.prepare("INSERT INTO report_templates (id,project_id,name,description,instructions,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").run(id, projectId, name, i.description, i.instructions, now, now);
   return { templateId: id, name, created: true, url };
@@ -138,6 +138,6 @@ export function saveReportTemplate(ctx: Ctx, projectId: string, base: string, i:
 export function deleteReportTemplate(ctx: Ctx, projectId: string, i: { templateId: string }) {
   getProject(ctx, projectId);
   const r = ctx.db.prepare("DELETE FROM report_templates WHERE id=? AND project_id=?").run(i.templateId, projectId);
-  if (Number(r.changes) === 0) throw new AppError("NOT_FOUND", `No report template ${i.templateId} in this project. Call list_report_templates to see what exists.`);
+  if (Number(r.changes) === 0) throw new AppError("NOT_FOUND", `This project has no report template with id ${i.templateId}. list_report_templates shows the ones that exist.`);
   return { templateId: i.templateId, deleted: true as const };
 }

@@ -5,7 +5,7 @@ import { getProject } from "./projects.ts";
 
 /**
  * Local SEO tools: Google Business Profile, reviews, posts, Q&A, business listings, local SERPs and the local rank grid.
- * Results are provider rows trimmed to the fields agents need, in the layout OpenSEO's agents already expect.
+ * Results are provider rows trimmed to the fields agents need, as header + pipe-separated rows.
  */
 
 type Args = Record<string, any>;
@@ -39,7 +39,7 @@ const serpCoordinate = (near: { latitude: number; longitude: number; zoom?: numb
 
 function identifier(a: Args) {
   const given = [a.businessName, a.cid, a.placeId].filter((v) => v != null);
-  if (given.length !== 1) throw new AppError("VALIDATION_ERROR", "Provide exactly one business identifier: businessName, cid, or placeId.");
+  if (given.length !== 1) throw new AppError("VALIDATION_ERROR", "Identify the business with exactly one of businessName, cid or placeId.");
   return { keyword: a.businessName as string | undefined, cid: a.cid as string | undefined, placeId: a.placeId as string | undefined };
 }
 const identifierKeyword = (i: ReturnType<typeof identifier>) => (i.cid != null ? `cid:${i.cid}` : i.placeId != null ? `place_id:${i.placeId}` : (i.keyword ?? ""));
@@ -82,7 +82,7 @@ function profileText(p: Record<string, unknown>) {
     ["claimed", cell(readPath(p, "is_claimed"))], ["status now", cell(readPath(p, "work_time", "work_hours", "current_status"))], ["hours", timetable(p)],
     ["photos", cell(readPath(p, "total_photos"))], ["cid", cell(readPath(p, "cid"))], ["place_id", cell(readPath(p, "place_id"))], ["check_url", cell(readPath(p, "check_url"))],
   ];
-  return rows.map(([k, v]) => `- ${k}: ${v}`).join("\n");
+  return rows.map(([k, v]) => `${k}: ${v}`).join("\n");
 }
 
 export async function getBusinessProfile(ctx: Ctx, a: Args): Promise<Out> {
@@ -97,7 +97,7 @@ export async function getBusinessProfile(ctx: Ctx, a: Args): Promise<Out> {
   }
   return {
     data: { profile },
-    text: profile ? `Google Business Profile:\n${profileText(profile)}` : "No Google Business Profile matched that identifier. Try a cid or placeId from get_local_serp_results.",
+    text: profile ? `Google Business Profile found:\n${profileText(profile)}` : "Google has no business profile for that identifier. A cid or placeId taken from get_local_serp_results is the most reliable.",
   };
 }
 
@@ -140,7 +140,7 @@ async function poll(ctx: Ctx, endpoint: Endpoint, taskId: string, publicId: stri
     }
     return { status: "pending", result: null };
   } catch (e) {
-    if (e instanceof AppError) throw new AppError(e.code, `${e.message} The queued task is still collectable — call again with taskId "${publicId}" at no extra cost.`);
+    if (e instanceof AppError) throw new AppError(e.code, `${e.message} The task is still queued at the provider; call this tool again with taskId "${publicId}" to collect it without paying twice.`);
     throw e;
   }
 }
@@ -162,7 +162,7 @@ export async function getBusinessReviews(ctx: Ctx, a: Args): Promise<Out> {
   let endpoint: Endpoint, taskId: string, publicId: string;
   if (a.taskId) {
     const m = /^(google|extended):(.+)$/.exec(a.taskId);
-    if (!m) throw new AppError("VALIDATION_ERROR", 'taskId must be the value this tool returned, formatted as "google:<id>" or "extended:<id>".');
+    if (!m) throw new AppError("VALIDATION_ERROR", "taskId must be exactly as returned earlier, in the form google:<id> or extended:<id>");
     endpoint = m[1] === "extended" ? "extended_reviews" : "reviews";
     taskId = m[2] ?? "";
     publicId = a.taskId;
@@ -175,14 +175,14 @@ export async function getBusinessReviews(ctx: Ctx, a: Args): Promise<Out> {
   }
   const o = await poll(ctx, endpoint, taskId, publicId);
   if (o.status === "pending") {
-    return { data: { status: "processing", taskId: publicId }, text: `Review collection is still running. Call get_business_reviews again with taskId "${publicId}" in 30-60 seconds — resuming charges no extra credits.` };
+    return { data: { status: "processing", taskId: publicId }, text: `The reviews are still being gathered. Call get_business_reviews again with taskId "${publicId}" in a minute or so; collecting them costs nothing extra.` };
   }
   const reviews = itemsOf(o.result as never).map((r) => pick(r, REVIEW_FIELDS));
   const totals = o.result ? { title: o.result.title ?? null, reviews_count: o.result.reviews_count ?? null, rating: o.result.rating ?? null, cid: o.result.cid ?? null, place_id: o.result.place_id ?? null } : null;
-  const header = `Collected ${reviews.length} reviews${typeof totals?.reviews_count === "number" ? ` of ${totals.reviews_count} total` : ""}.`;
+  const header = `Got ${reviews.length} review${reviews.length === 1 ? "" : "s"}${typeof totals?.reviews_count === "number" ? ` (the profile has ${totals.reviews_count} in total)` : ""}.`;
   return {
     data: { status: "completed", taskId: publicId, reviews, totals },
-    text: reviews.length === 0 ? `${header} This profile has no reviews matching the request.` : `${header} Review text is truncated in this table; full text is in the structured result.\n${table(reviews, REVIEW_COLS)}`,
+    text: reviews.length === 0 ? `${header} Nothing matched the request.` : `${header} The table shortens long reviews; the full text is in the structured result.\n${table(reviews, REVIEW_COLS)}`,
   };
 }
 
@@ -198,7 +198,7 @@ export async function getBusinessUpdates(ctx: Ctx, a: Args): Promise<Out> {
   const project = getProject(ctx, a.projectId);
   let taskId: string;
   if (a.taskId) {
-    if (a.taskId.includes(":")) throw new AppError("VALIDATION_ERROR", "That looks like a get_business_reviews taskId; pass the bare taskId this tool returned.");
+    if (a.taskId.includes(":")) throw new AppError("VALIDATION_ERROR", "This taskId belongs to get_business_reviews. Use the plain id returned by get_business_updates.");
     taskId = a.taskId;
   } else {
     const id = identifier(a);
@@ -206,11 +206,11 @@ export async function getBusinessUpdates(ctx: Ctx, a: Args): Promise<Out> {
   }
   const o = await poll(ctx, "my_business_updates", taskId, taskId);
   if (o.status === "pending") {
-    return { data: { status: "processing", taskId }, text: `Post collection is still running. Call get_business_updates again with taskId "${taskId}" in 30-60 seconds — resuming charges no extra credits.` };
+    return { data: { status: "processing", taskId }, text: `The posts are still being gathered. Call get_business_updates again with taskId "${taskId}" in a minute or so; collecting them costs nothing extra.` };
   }
   const updates = itemsOf(o.result as never).map((r) => pick(r, UPDATE_FIELDS));
-  const header = `Collected ${updates.length} Google Business posts.`;
-  return { data: { status: "completed", taskId, updates }, text: updates.length === 0 ? `${header} This profile has published no posts.` : `${header}\n${table(updates, UPDATE_COLS)}` };
+  const header = `Got ${updates.length} Google Business post${updates.length === 1 ? "" : "s"}.`;
+  return { data: { status: "completed", taskId, updates }, text: updates.length === 0 ? `${header} The profile has not published any posts.` : `${header}\n${table(updates, UPDATE_COLS)}` };
 }
 
 // ---------------- categories ----------------
@@ -232,7 +232,7 @@ export async function listBusinessCategories(ctx: Ctx, a: Args): Promise<Out> {
   const q = typeof a.query === "string" ? a.query.toLowerCase() : undefined;
   const matched = q ? all.filter((r) => r.category.toLowerCase().includes(q)) : all;
   const categories = matched.slice(0, a.limit ?? 50);
-  const header = `Found ${matched.length} categories${q ? ` matching "${a.query}"` : ""}; showing ${categories.length}.`;
+  const header = `${matched.length} categor${matched.length === 1 ? "y" : "ies"}${q ? ` contain "${a.query}"` : " in the list"}; ${categories.length} shown.`;
   const cols: Column<Category>[] = [{ header: "category", value: (r) => r.category }, { header: "businesses", value: (r) => r.businessCount }];
   return { data: { categories }, text: categories.length === 0 ? header : `${header}\n${table(categories, cols)}` };
 }
@@ -258,7 +258,7 @@ export async function searchLocalBusinesses(ctx: Ctx, a: Args): Promise<Out> {
     filters: filters.length ? filters : undefined, order_by: orderBy, limit: a.limit ?? 20, offset: a.offset,
   });
   const businesses = itemsOf(r).map((x) => pick(x, LISTING_FIELDS));
-  const header = `Found ${businesses.length} local business rows${a.query ? ` for ${a.query}` : ""}.`;
+  const header = `${businesses.length} local business${businesses.length === 1 ? "" : "es"} found${a.query ? ` for "${a.query}"` : ""}.`;
   return { data: { businesses }, text: businesses.length === 0 ? header : `${header}\n${table(businesses, LISTING_COLS)}` };
 }
 
@@ -282,7 +282,7 @@ export async function getLocalSerpResults(ctx: Ctx, a: Args): Promise<Out> {
   const project = getProject(ctx, a.projectId);
   const rows = await localSerp(ctx, { keyword: a.keyword, coordinate: serpCoordinate(a.near), languageCode: a.languageCode ?? project.languageCode, searchType: a.searchType ?? "maps", device: a.device ?? "mobile", depth: a.depth ?? 20, searchPlaces: false });
   const results = rows.map((x) => pick(x, SERP_FIELDS));
-  const header = `Fetched ${results.length} local SERP rows for "${a.keyword}".`;
+  const header = `${results.length} local result${results.length === 1 ? "" : "s"} for "${a.keyword}".`;
   return { data: { results }, text: results.length === 0 ? header : `${header}\n${table(results, SERP_COLS)}` };
 }
 
@@ -304,7 +304,7 @@ export async function getGoogleBusinessQuestions(ctx: Ctx, a: Args): Promise<Out
     t.items = Array.isArray(answers) ? answers.map((x) => pick(x, ANSWER_FIELDS)) : null;
     return t;
   });
-  const header = `Fetched ${questions.length} Google Business Q&A rows for ${identifierKeyword(id)}.`;
+  const header = `${questions.length} question${questions.length === 1 ? "" : "s"} on the Google profile of ${identifierKeyword(id)}.`;
   return { data: { questions }, text: questions.length === 0 ? header : `${header}\n${table(questions, QA_COLS)}` };
 }
 
@@ -330,7 +330,7 @@ const ABORT = new Set(["UNAUTHENTICATED", "NOT_CONFIGURED", "BUDGET_EXCEEDED", "
 export async function getLocalRankGrid(ctx: Ctx, a: Args): Promise<Out> {
   const project = getProject(ctx, a.projectId);
   const t = a.target ?? {};
-  if (t.cid == null && t.placeId == null && t.name == null) throw new AppError("VALIDATION_ERROR", "target needs at least one of cid, placeId, or name.");
+  if (t.cid == null && t.placeId == null && t.name == null) throw new AppError("VALIDATION_ERROR", "target must include at least one of cid, placeId or name");
   const size: number = a.gridSize ?? 3, spacing: number = a.spacingKm ?? 2;
   const zoom: number = a.zoom ?? gridZoom(spacing, a.center.latitude);
   const points = gridPoints(a.center, size, spacing);
@@ -368,12 +368,12 @@ export async function getLocalRankGrid(ctx: Ctx, a: Args): Promise<Out> {
   const lines: string[] = [];
   for (let row = 0; row < size; row++) lines.push(grid.slice(row * size, (row + 1) * size).map((p) => (p.error ? "x" : (p.rank?.toString() ?? "–")).padStart(2, " ")).join(" "));
   const text = [
-    `Local rank grid for "${a.keyword}" (${size}x${size}, ${spacing} km spacing, zoom ${zoom}, top ${GRID_DEPTH} checked).`,
-    `Rank per point, north at the top ("–" = not among the results returned there; check that point's resultsCount and topResult before reading it as outranked, "x" = search failed but may still be charged):`,
+    `Map rankings for "${a.keyword}" on a ${size}x${size} grid, points ${spacing} km apart, zoom ${zoom}, looking at the top ${GRID_DEPTH} results.`,
+    `Position at each point, north at the top. "–" means the business was not in the results at that point (see resultsCount and topResult before concluding it was outranked); "x" means that search failed and may still have been billed:`,
     lines.join("\n"),
-    `- ranked at ${summary.pointsFound} of ${summary.pointsSearched} points`,
-    `- average rank where found: ${summary.averageRank ?? "—"}`,
-    `- top 3 at ${summary.top3Count} points, top 10 at ${summary.top10Count} points`,
+    `ranked at ${summary.pointsFound} of ${summary.pointsSearched} points`,
+    `average position where found: ${summary.averageRank ?? "n/a"}`,
+    `top 3 at ${summary.top3Count} points; top 10 at ${summary.top10Count} points`,
   ].join("\n");
   return { data: { grid, summary, matchedBusiness: matched }, text };
 }

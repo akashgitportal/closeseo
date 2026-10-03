@@ -76,7 +76,7 @@ test("callback: stores an encrypted grant, returns to the project's integrations
   assert.ok(start.url);
   const forged = await c.get("/api/gsc/oauth/callback?code=x&state=nope");
   assert.match(forged.headers.get("location")!, /google_error=/); assert.equal((c.ctx.db.prepare("SELECT COUNT(*) AS n FROM google_grants").get() as any).n, 1);
-  assert.match((await c.get("/api/gsc/oauth/callback")).headers.get("location")!, /google_error=Missing/);
+  assert.match((await c.get("/api/gsc/oauth/callback")).headers.get("location")!, /google_error=The\+sign-in\+response\+is\+missing/);
 });
 
 test("state is provider-bound and expires", async () => {
@@ -102,7 +102,7 @@ test("user declines, omits the permission box, or Google rejects the exchange: n
   const { url } = (await (await c.post("/api/google/gsc/start", { projectId: pid })).json()) as { url: string };
   const { location } = g.consent(url);
   const tampered = new URL(location); tampered.searchParams.set("code", "forged");
-  assert.match((await c.get(tampered.pathname + tampered.search)).headers.get("location")!, /Google\+refused|Google refused/);
+  assert.match((await c.get(tampered.pathname + tampered.search)).headers.get("location")!, /Google\+turned\+down/);
   assert.equal((c.ctx.db.prepare("SELECT COUNT(*) AS n FROM google_grants").get() as any).n, 0);
 });
 
@@ -140,8 +140,8 @@ test("tokens: expired access tokens are refreshed once (even under concurrency) 
   assert.equal(await getAccessToken(c.ctx, id), tokens[0], "fresh token is reused");
   c.ctx.db.prepare("UPDATE google_grants SET expires_at=?").run(0);
   await g.control({ revokeRefresh: true });
-  await assert.rejects(getAccessToken(c.ctx, id), (e: unknown) => e instanceof GoogleTokenError && /Reconnect/.test((e as Error).message));
-  await assert.rejects(getAccessToken(c.ctx, "missing"), /no longer exists/);
+  await assert.rejects(getAccessToken(c.ctx, id), (e: unknown) => e instanceof GoogleTokenError && /Connect it again/.test((e as Error).message));
+  await assert.rejects(getAccessToken(c.ctx, "missing"), /has been removed/);
   c.ctx.db.prepare("UPDATE google_grants SET refresh_token_enc=NULL").run();
   await assert.rejects(getAccessToken(c.ctx, id), /no refresh token/);
 });
@@ -167,7 +167,7 @@ test("Search Console: choose a verified property; unverified, foreign or unknown
   assert.equal((await c.app.request(`/api/google/gsc/${pid}`, { method: "DELETE" })).status, 204);
   assert.equal((await status()).gsc.connection, null);
   const r = await c.tool("get_search_console_performance", { projectId: pid });
-  assert.deepEqual([r.structuredContent.ok, r.structuredContent.reason], [false, "not_connected"]); assert.match(r.content[0]!.text, /not connected for this project\. Connect it here: http/);
+  assert.deepEqual([r.structuredContent.ok, r.structuredContent.reason], [false, "not_connected"]); assert.match(r.content[0]!.text, /linked to this project\. .*http/);
 });
 test("list failures are reported per account instead of failing the page", async () => {
   await connect("gsc");
@@ -199,7 +199,7 @@ test("get_search_console_performance: date handling, limits and pagination", asy
   assert.ok(Math.abs(Date.parse(body().startDate) - floor.getTime()) < 3 * 86_400_000, "start is clamped to Search Console's 16-month history");
   const half = await c.tool("get_search_console_performance", { projectId: pid, startDate: "2026-09-01" });
   assert.deepEqual([half.structuredContent.ok, half.structuredContent.reason], [false, "invalid_request"]);
-  assert.equal((await c.tool("get_search_console_performance", { projectId: pid, dimensions: ["searchAppearance", "query"] })).content[0]!.text, "searchAppearance must be the only dimension when used.");
+  assert.match((await c.tool("get_search_console_performance", { projectId: pid, dimensions: ["searchAppearance", "query"] })).content[0]!.text, /searchAppearance.*(only|own|alone)/);
   const page1 = (await c.tool("get_search_console_performance", { projectId: pid, rowLimit: 10 })).structuredContent;
   assert.deepEqual([page1.rowCount, page1.hasMore, page1.nextStartRow], [10, true, 10]);
   const exact = (await c.tool("get_search_console_performance", { projectId: pid, rowLimit: 10, startRow: 30 })).structuredContent;
@@ -208,7 +208,7 @@ test("get_search_console_performance: date handling, limits and pagination", asy
   assert.deepEqual([last.rowCount, last.hasMore], [5, false]);
   await g.control({ gscRows: 0 });
   const empty = await c.tool("get_search_console_performance", { projectId: pid });
-  assert.equal(empty.structuredContent.rowCount, 0); assert.match(empty.content[0]!.text, /No rows for this query\/date range/);
+  assert.equal(empty.structuredContent.rowCount, 0); assert.match(empty.content[0]!.text, /no rows for that query and date range/i);
 });
 test("get_search_console_performance: position/impression filters are applied after fetching the whole window, with Google-space pagination", async () => {
   await useSite();
@@ -222,7 +222,7 @@ test("get_search_console_performance: position/impression filters are applied af
 });
 test("Search Console errors become actionable, structured results (never exceptions)", async () => {
   await useSite();
-  for (const [mode, re, reason] of [["forbidden", /denied access to this property/, "api_error"], ["rate", /rate limit/, "api_error"], ["boom", /Search Console API error \(500\)/, "api_error"]] as const) {
+  for (const [mode, re, reason] of [["forbidden", /refused access to this property/, "api_error"], ["rate", /limiting requests/, "api_error"], ["boom", /Search Console API failure \(500\)/, "api_error"]] as const) {
     await g.control({ gscMode: mode });
     const r = await c.tool("get_search_console_performance", { projectId: pid });
     assert.equal(r.structuredContent.ok, false); assert.equal(r.structuredContent.reason, reason); assert.match(r.content[0]!.text, re);
@@ -231,19 +231,19 @@ test("Search Console errors become actionable, structured results (never excepti
   await g.control({ gscMode: "ok" });
   c.ctx.db.prepare("UPDATE google_grants SET expires_at=0").run(); await g.control({ revokeRefresh: true });
   const revoked = await c.tool("get_search_console_performance", { projectId: pid });
-  assert.match(revoked.content[0]!.text, /expired or was revoked/);
+  assert.match(revoked.content[0]!.text, /lapsed or was withdrawn/);
 });
 test("inspect_urls: per-URL results, inline failures, language, limits", async () => {
   await useSite();
   const r = (await c.tool("inspect_urls", { projectId: pid, urls: ["https://example.com/a", "https://example.com/bad", "https://example.com/c"], languageCode: "en-US" })).structuredContent;
   assert.equal(r.ok, true); assert.equal(r.results.length, 3);
-  assert.equal(r.results[0].result.indexStatusResult.verdict, "PASS"); assert.equal(r.results[1].result, null); assert.match(r.results[1].error, /Search Console API error \(400\)/);
+  assert.equal(r.results[0].result.indexStatusResult.verdict, "PASS"); assert.equal(r.results[1].result, null); assert.match(r.results[1].error, /Search Console API failure \(400\)/);
   const b = g.stats().bodies["/v1/urlInspection/index:inspect"]!;
   assert.deepEqual([b[0].siteUrl, b[0].inspectionUrl, b[0].languageCode], ["sc-domain:example.com", "https://example.com/a", "en-US"]);
   assert.ok((await c.tool("inspect_urls", { projectId: pid, urls: [] })).isError); assert.ok((await c.tool("inspect_urls", { projectId: pid, urls: Array(11).fill("https://example.com/") })).isError);
   assert.ok((await c.tool("inspect_urls", { projectId: pid, urls: ["not a url"] })).isError, "uri format enforced");
   c.ctx.db.prepare("UPDATE google_grants SET expires_at=0").run(); await g.control({ revokeRefresh: true });
-  assert.match((await c.tool("inspect_urls", { projectId: pid, urls: ["https://example.com/a"] })).content[0]!.text, /expired or was revoked/, "token failures abort the batch (reconnect needed)");
+  assert.match((await c.tool("inspect_urls", { projectId: pid, urls: ["https://example.com/a"] })).content[0]!.text, /lapsed or was withdrawn/, "token failures abort the batch (reconnect needed)");
 });
 
 test("Analytics: property choice, metadata captured, foreign properties refused", async () => {
@@ -261,7 +261,7 @@ test("every Analytics tool answers 'not connected' with a link, never an excepti
   for (const [t, a] of [["get_google_analytics_organic_landing_pages", {}], ["get_google_analytics_page_performance", {}], ["get_google_analytics_key_events", {}], ["get_google_analytics_organic_overview", {}], ["get_google_analytics_traffic_acquisition", {}], ["get_google_analytics_ecommerce_performance", {}], ["get_google_analytics_site_search", {}], ["get_google_analytics_audience_breakdown", {}], ["get_google_analytics_measurement_health", {}]] as const) {
     const r = await c.tool(t, { projectId: pid, ...a });
     assert.equal(r.structuredContent.status, "error", t); assert.equal(r.structuredContent.error.code, "ga4_not_connected");
-    assert.match(r.structuredContent.error.actionUrl, /\/p\/[0-9a-f-]+\/settings\/integrations$/); assert.match(r.content[0]!.text, /not connected for this project\. Continue here: http/);
+    assert.match(r.structuredContent.error.actionUrl, /\/p\/[0-9a-f-]+\/settings\/integrations$/); assert.match(r.content[0]!.text, /linked to this project\. Continue here: http/);
   }
 });
 
@@ -310,10 +310,10 @@ test("Analytics dates: default is the last 28 complete days in the property's ti
   const future = (await c.tool("get_google_analytics_key_events", { projectId: pid, startDate: "2026-01-01", endDate: shiftDate(endDate, 10) })).structuredContent;
   assert.equal(future.request.resolvedDateRange.endDate, endDate); assert.deepEqual(future.warnings, ["end_date_clamped"]); assert.match((await c.tool("get_google_analytics_key_events", { projectId: pid, startDate: "2026-01-01", endDate: shiftDate(endDate, 10) })).content[0]!.text, /end date was moved to the last complete day/);
   const err = async (a: Record<string, unknown>) => (await c.tool("get_google_analytics_key_events", { projectId: pid, ...a })).structuredContent.error;
-  assert.equal((await err({ startDate: "2026-01-01" })).message, "Provide both startDate and endDate, or neither.");
+  assert.equal((await err({ startDate: "2026-01-01" })).message, "Give startDate and endDate together, or leave both out.");
   assert.equal((await err({ startDate: "2026-02-30", endDate: "2026-03-01" })).code, "validation_error");
-  assert.equal((await err({ startDate: "2026-03-02", endDate: "2026-03-01" })).message, "Dates must be valid YYYY-MM-DD values with startDate on or before endDate.");
-  assert.equal((await err({ startDate: shiftDate(endDate, 5), endDate: shiftDate(endDate, 9) })).message, "The resolved startDate is after the last complete Analytics day.");
+  assert.equal((await err({ startDate: "2026-03-02", endDate: "2026-03-01" })).message, "Dates need the form YYYY-MM-DD, and startDate may not come after endDate.");
+  assert.equal((await err({ startDate: shiftDate(endDate, 5), endDate: shiftDate(endDate, 9) })).message, "The start date falls after the most recent complete Analytics day.");
   assert.ok((await c.tool("get_google_analytics_key_events", { projectId: pid, limit: 0 })).isError, "schema bounds limit before the service sees it");
 });
 test("Analytics comparison: previous period of equal length, complete fetch, percent change", async () => {
@@ -328,7 +328,7 @@ test("Analytics comparison: previous period of equal length, complete fetch, per
   assert.deepEqual(Object.keys(m), ["current", "previous", "absoluteChange", "percentChange"]); assert.ok(m.absoluteChange > 0 && Math.abs(m.percentChange - m.absoluteChange / m.previous) < 1e-9);
   assert.equal(r.comparison.coverage.complete, true); assert.deepEqual(r.warnings, []);
   const bad = (await c.tool("get_google_analytics_traffic_acquisition", { projectId: pid, breakdown: "campaign", comparePreviousPeriod: true })).structuredContent.error;
-  assert.equal(bad.code, "validation_error"); assert.match(bad.message, /only available for event key events/);
+  assert.equal(bad.code, "validation_error"); assert.match(bad.message, /previous period works only for key events/);
   await g.control({ ga4Rows: 1500 });
   const big = (await c.tool("get_google_analytics_key_events", { projectId: pid, comparePreviousPeriod: true })).structuredContent;
   assert.equal(big.comparison.coverage.complete, false); assert.deepEqual(big.warnings, ["comparison_incomplete"]);
@@ -374,7 +374,7 @@ test("Analytics errors map to stable codes with the right action link and retry 
     assert.equal(e.code, code, mode); assert.equal(e.retryAfterSeconds ?? undefined, retry, mode); assert.equal(Boolean(e.actionUrl), link, mode);
   }
   await g.control({ ga4Mode: "disabled" });
-  assert.match((await c.tool("get_google_analytics_key_events", { projectId: pid })).structuredContent.error.message, /Data API is not enabled for this OAuth application/);
+  assert.match((await c.tool("get_google_analytics_key_events", { projectId: pid })).structuredContent.error.message, /Data API is switched off for this OAuth application/);
   await g.control({ ga4Mode: "ok" }); c.ctx.db.prepare("UPDATE google_grants SET expires_at=0").run(); await g.control({ revokeRefresh: true });
   const e = (await c.tool("get_google_analytics_key_events", { projectId: pid })).structuredContent.error;
   assert.equal(e.code, "ga4_reconnect_required"); assert.match(e.actionUrl, /settings\/integrations/);

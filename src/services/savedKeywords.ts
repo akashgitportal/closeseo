@@ -13,7 +13,7 @@ export type KeywordMetricsInput = {
   monthlySearches?: { year: number; month: number; searchVolume: number }[];
 };
 
-/** Storage key: trimmed and lower-cased; inner whitespace is significant (matches the SOURCE). */
+/** Storage key: trimmed and lower-cased; inner whitespace is significant (two keywords that differ only in inner spacing are different keywords). */
 export const normKeyword = (k: string) => k.trim().toLowerCase();
 
 export function saveKeywords(
@@ -39,7 +39,7 @@ export function saveKeywords(
   }
   const keys = [...firstSeen.keys()];
   const keywords = [...firstSeen.values()];
-  if (keys.length === 0) throw new AppError("VALIDATION_ERROR", "No non-empty keywords provided");
+  if (keys.length === 0) throw new AppError("VALIDATION_ERROR", "Every keyword was blank, so nothing was saved");
   const tags = [...new Set((input.tags ?? []).map((t) => t.trim()).filter(Boolean))];
   const metrics = new Map((input.metrics ?? []).map((m) => [normKeyword(m.keyword), m]));
 

@@ -59,12 +59,12 @@ export function resolveLabsMarket(args: { locationCode?: number; languageCode?: 
 
 export function assertLabsLocationCode(locationCode: number | undefined) {
   if (locationCode != null && getKeywordDataProvider(locationCode) !== "labs")
-    throw new AppError("VALIDATION_ERROR", "Domain analytics is not available for this country. Keyword research and rank tracking work; domain-level data is limited to DataForSEO Labs locations.");
+    throw new AppError("VALIDATION_ERROR", "Domain-level analytics are not offered for this country. Keyword research and rank tracking still work there; domain data only covers DataForSEO Labs locations.");
 }
 
 export function assertLanguageForLocation(locationCode: number | undefined, languageCode: string | undefined) {
   if (languageCode == null) return;
   const loc = locationCode ?? DEFAULT_LOCATION;
   if (isLanguageServedForLocation(loc, languageCode)) return;
-  throw new AppError("VALIDATION_ERROR", `Language '${languageCode}' is not available for this location. Available: ${getLanguageOptions(loc).join(", ")}.`);
+  throw new AppError("VALIDATION_ERROR", `Language "${languageCode}" cannot be used with this location. Choose one of: ${getLanguageOptions(loc).join(", ")}.`);
 }

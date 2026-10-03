@@ -130,12 +130,13 @@ export function createApp(ctx: Ctx) {
   app.post("/api/tools/:name", async (c) => {
     const name = c.req.param("name");
     const reply = await handleRpc(ctx, baseUrl(c), { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: await readJson(c) } });
-    const result = reply?.result as { isError?: boolean; structuredContent?: unknown; content?: { text: string }[] } | undefined;
+    const result = reply?.result as { isError?: boolean; structuredContent?: unknown; content?: { text: string }[]; _meta?: { errorCode?: string } } | undefined;
     if (reply?.error || !result) return c.json({ error: { code: "NOT_FOUND", message: `Unknown tool ${name}` } }, 404);
     if (result.isError) {
       const message = result.content?.[0]?.text ?? "Error";
-      const status = message === "NOT_FOUND" ? 404 : message.startsWith("Input validation error") ? 400 : message.includes("not available in this release") ? 501 : message === "INTERNAL_ERROR" ? 500 : 422;
-      return c.json({ error: { code: message === "NOT_FOUND" ? "NOT_FOUND" : status === 400 ? "VALIDATION_ERROR" : "TOOL_ERROR", message } }, status);
+      const kind = result._meta?.errorCode;
+      const status = kind === "NOT_FOUND" ? 404 : kind === "INVALID_INPUT" ? 400 : kind === "INTERNAL_ERROR" ? 500 : 422;
+      return c.json({ error: { code: status === 404 ? "NOT_FOUND" : status === 400 ? "VALIDATION_ERROR" : "TOOL_ERROR", message } }, status);
     }
     return c.json({ data: result.structuredContent, text: result.content?.[0]?.text });
   });

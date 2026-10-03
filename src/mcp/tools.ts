@@ -36,7 +36,7 @@ const json = (v: unknown, max = 20_000) => {
   return s.length > max ? `${s.slice(0, max)}\n… (truncated; see structuredContent)` : s;
 };
 
-/** Integrations that exist in the SOURCE product but are not part of this release. */
+/** Integrations that may need extra provider access and are not part of this release. */
 const UNSUPPORTED_REASON: Record<string, string> = {
   local: "Google Business / local SEO data tools",
 };
@@ -53,7 +53,7 @@ export const HANDLERS: Record<string, Handler> = {
   ...ga4Handlers,
   whoami: (ctx) => ({
     data: { userEmail: "admin@localhost", scopes: [], mode: "self-hosted", creditsRemaining: null },
-    text: `Account: ${ctx.config.authMode === "local_noauth" ? "admin@localhost" : "api-key user"}\nMode: self-hosted\nScopes: none`,
+    text: `Signed in as ${ctx.config.authMode === "local_noauth" ? "admin@localhost (no login required)" : "the API-key user"}.\nThis is a self-hosted closeseo server; there are no token scopes.`,
   }),
 
   list_projects: (ctx, _a, env) => {
@@ -61,95 +61,95 @@ export const HANDLERS: Record<string, Handler> = {
     return {
       data: { projects },
       url: `${env.baseUrl}/`,
-      text: `Projects (${projects.length}):\n${projects.map((p) => `- ${p.id}  ${p.name} (${p.domain ?? "no domain"})  market:${p.locationCode}/${p.languageCode}`).join("\n")}`,
+      text: `${projects.length} project${projects.length === 1 ? "" : "s"}:\n${projects.map((p) => `* ${p.name} [${p.id}] site: ${p.domain ?? "none"}, market ${p.locationCode}/${p.languageCode}`).join("\n")}`,
     };
   },
   create_project: (ctx, a, env) => {
-    if (a.organizationId !== undefined) throw new AppError("VALIDATION_ERROR", "organizationId is not supported: closeseo is single-tenant");
+    if (a.organizationId !== undefined) throw new AppError("VALIDATION_ERROR", "organizationId cannot be used here: closeseo has a single owner and no organisations");
     const p = createProject(ctx, a as never);
     const url = projectUrl(env, p.id);
-    return { data: { project: { ...p, url } }, url, text: `Created project ${p.id}  ${p.name} (${p.domain ?? "no domain"})  market:${p.locationCode}/${p.languageCode}` };
+    return { data: { project: { ...p, url } }, url, text: `Project "${p.name}" created with id ${p.id} (site: ${p.domain ?? "none"}, market ${p.locationCode}/${p.languageCode}).` };
   },
-  get_project_context: (ctx, a, env) => ({ data: getContext(ctx, a.projectId), url: projectUrl(env, a.projectId, "/context"), text: "Project context loaded." }),
+  get_project_context: (ctx, a, env) => ({ data: getContext(ctx, a.projectId), url: projectUrl(env, a.projectId, "/context"), text: "Returned the project's saved notes, competitors, key pages and research log." }),
   update_project_context: (ctx, a, env) => ({
     data: updateContext(ctx, a.projectId, a.updates as ContextUpdate[]), url: projectUrl(env, a.projectId, "/context"),
-    text: `Applied ${a.updates.length} update(s) to project context.`,
+    text: `Saved ${a.updates.length} change${a.updates.length === 1 ? "" : "s"} to the project notes.`,
   }),
 
   list_saved_keywords: (ctx, a, env) => {
     const r = listSavedKeywords(ctx, a.projectId, a);
-    return { data: r, url: projectUrl(env, a.projectId, "/saved"), text: `${r.totalCount} saved keyword(s); showing ${r.rows.length}.\n${r.rows.map((k) => `- ${k.keyword}  vol:${k.searchVolume ?? "-"}  kd:${k.keywordDifficulty ?? "-"}  [${k.tags.join(", ")}]`).join("\n")}` };
+    return { data: r, url: projectUrl(env, a.projectId, "/saved"), text: `The project has ${r.totalCount} saved keyword${r.totalCount === 1 ? "" : "s"}; ${r.rows.length} listed.\n${r.rows.map((k) => `* ${k.keyword} (volume ${k.searchVolume ?? "n/a"}, difficulty ${k.keywordDifficulty ?? "n/a"}) tags: ${k.tags.join(", ") || "none"}`).join("\n")}` };
   },
   save_keywords: (ctx, a, env) => {
     const r = saveKeywords(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/saved"), text: `Saved ${r.savedCount} keyword(s).` };
+    return { data: r, url: projectUrl(env, a.projectId, "/saved"), text: `${r.savedCount} keyword${r.savedCount === 1 ? "" : "s"} saved.` };
   },
   remove_saved_keywords: (ctx, a, env) => {
     const r = removeSavedKeywords(ctx, a.projectId, a.savedKeywordIds);
-    return { data: r, url: projectUrl(env, a.projectId, "/saved"), text: `Removed ${r.deletedCount} of ${r.requested} saved keyword(s).` };
+    return { data: r, url: projectUrl(env, a.projectId, "/saved"), text: `Deleted ${r.deletedCount} of the ${r.requested} saved keyword${r.requested === 1 ? "" : "s"} you named.` };
   },
 
   research_keywords: async (ctx, a, env) => {
     const r = await researchKeywords(ctx, a.projectId, a as never);
-    const lines = r.results.map((x) => (x.ok ? `## "${x.seed}" — ${x.rowCount} keywords (${x.source}${x.usedFallback ? ", with related-keyword top-up" : ""})` : `## "${x.seed}" — FAILED\n${x.error}`));
+    const lines = r.results.map((x) => (x.ok ? `Seed "${x.seed}": ${x.rowCount} keywords from ${x.source}${x.usedFallback ? " plus related-keyword fill-in" : ""}` : `Seed "${x.seed}" failed: ${x.error}`));
     return { data: r, url: projectUrl(env, a.projectId, "/keywords"), text: `${lines.join("\n")}\n${json(r.results.filter((x) => x.ok).map((x) => (x.ok ? { seed: x.seed, rows: x.rows.slice(0, 50) } : null)), 12_000)}` };
   },
   get_keyword_metrics: async (ctx, a, env) => {
     const r = await getKeywordMetrics(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/keywords"), text: `Fetched metrics for ${r.keywords.length} keywords.\n${json(r.keywords)}` };
+    return { data: r, url: projectUrl(env, a.projectId, "/keywords"), text: `Metrics for ${r.keywords.length} keyword${r.keywords.length === 1 ? "" : "s"}:\n${json(r.keywords)}` };
   },
 
   get_domain_overview: async (ctx, a, env) => {
     const r = await getDomainOverview(ctx, a.projectId, a as never);
-    const note = r.scope === "subdomains" ? [] : ["Note: overview metrics cover the whole domain including subdomains; use get_ranked_keywords with this scope for scoped keyword data."];
+    const note = r.scope === "subdomains" ? [] : ["These totals describe the whole domain with its subdomains. For numbers limited to your chosen scope, call get_ranked_keywords."];
     return {
       data: r, url: projectUrl(env, a.projectId, "/domain", { domain: a.domain }),
-      text: [`Target: ${r.displayTarget} (scope: ${r.scope})`, `Organic traffic: ${r.organicTraffic ?? "?"}`, `Organic keywords: ${r.organicKeywords ?? "?"}`, `Backlinks: ${r.backlinks ?? "?"}`, `Referring domains: ${r.referringDomains ?? "?"}`, ...note].join("\n"),
+      text: [`Overview of ${r.displayTarget} (scope ${r.scope})`, `estimated organic traffic: ${r.organicTraffic ?? "unknown"}`, `ranking keywords: ${r.organicKeywords ?? "unknown"}`, `backlinks: ${r.backlinks ?? "unknown"}`, `referring domains: ${r.referringDomains ?? "unknown"}`, ...note].join("\n"),
     };
   },
   get_domain_keyword_suggestions: async (ctx, a, env) => {
     const r = await getDomainKeywordSuggestions(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/domain", { domain: r.target, scope: r.scope }), text: `${r.keywords.length} ranked keywords for ${r.target} (scope: ${r.scope}).\n${json(r.keywords.slice(0, 50))}` };
+    return { data: r, url: projectUrl(env, a.projectId, "/domain", { domain: r.target, scope: r.scope }), text: `${r.target} (scope ${r.scope}) ranks for ${r.keywords.length} keyword${r.keywords.length === 1 ? "" : "s"} on this page of results:\n${json(r.keywords.slice(0, 50))}` };
   },
   get_ranked_keywords: async (ctx, a, env) => {
     const r = await getRankedKeywords(ctx, a.projectId, a as never);
     return {
       data: r, url: projectUrl(env, a.projectId, "/domain", { domain: r.target, scope: r.scope }),
-      text: r.keywords.length === 0 ? `No ranked keyword rows for ${r.target} (scope: ${r.scope}).` : `Found ${r.keywords.length} ranked keyword rows for ${r.target} (scope: ${r.scope})${r.totalCount != null ? ` (of ${r.totalCount} total)` : ""}:\n${json(r.keywords.slice(0, 50))}`,
+      text: r.keywords.length === 0 ? `${r.target} (scope ${r.scope}) has no ranking keywords matching these filters.` : `${r.target} (scope ${r.scope}): showing ${r.keywords.length}${r.totalCount != null ? ` of ${r.totalCount}` : ""} ranking keywords:\n${json(r.keywords.slice(0, 50))}`,
     };
   },
   find_serp_competitors: async (ctx, a, env) => {
     const r = await findSerpCompetitors(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/domain"), text: `Found ${r.competitors.length} SERP competitors across ${a.keywords.length} keywords.\n${json(r.competitors)}` };
+    return { data: r, url: projectUrl(env, a.projectId, "/domain"), text: `${r.competitors.length} domain${r.competitors.length === 1 ? "" : "s"} compete for your ${a.keywords.length} keyword${a.keywords.length === 1 ? "" : "s"}:\n${json(r.competitors)}` };
   },
   get_backlinks_overview: async (ctx, a, env) => {
     const r = await getBacklinksOverview(ctx, a.projectId, a as never);
     const s = r.overview.overview.summary;
     return {
       data: r, url: projectUrl(env, a.projectId, "/backlinks", { target: a.target, scope: r.scope }),
-      text: [`Backlinks profile for ${r.target} (scope: ${r.scope}):`, ...(r.scopeNote ? [`Note: ${r.scopeNote}`] : []), `- backlinks: ${s.backlinks ?? "?"}`, `- referring domains: ${s.referringDomains ?? "?"}`, `- referring pages: ${s.referringPages ?? "?"}`, `- rank: ${s.rank ?? "?"}`].join("\n"),
+      text: [`Backlink summary for ${r.target} (scope ${r.scope})`, ...(r.scopeNote ? [r.scopeNote] : []), `backlinks: ${s.backlinks ?? "unknown"}`, `referring domains: ${s.referringDomains ?? "unknown"}`, `referring pages: ${s.referringPages ?? "unknown"}`, `domain rank: ${s.rank ?? "unknown"}`].join("\n"),
     };
   },
   get_backlinks_profile: async (ctx, a, env) => {
     const r = await getBacklinksProfile(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/backlinks", { target: a.target, scope: r.scope }), text: `${r.backlinks.totalCount ?? "?"} backlinks for ${r.target} (page ${r.backlinks.page}).\n${json(r.backlinks.rows.slice(0, 50))}` };
+    return { data: r, url: projectUrl(env, a.projectId, "/backlinks", { target: a.target, scope: r.scope }), text: `${r.target} has ${r.backlinks.totalCount ?? "an unknown number of"} backlinks; this is page ${r.backlinks.page}:\n${json(r.backlinks.rows.slice(0, 50))}` };
   },
   get_serp_results: async (ctx, a, env) => {
     const r = await getSerpResults(ctx, a.projectId, a as never);
     const ok = r.results.filter((x) => x.ok).length;
     return {
       data: r, url: projectUrl(env, a.projectId, "/keywords"),
-      text: r.results.map((x) => (x.ok ? `"${x.keyword}" (${x.items.length} results):\n${x.items.map((i) => `${i.rank} | ${i.domain ?? "—"} | ${i.title ?? "—"} | ${i.url ?? "—"}`).join("\n")}` : `"${x.keyword}": FAILED — ${x.error}`)).join("\n\n") + `\n\n${ok} of ${r.results.length} queries succeeded.`,
+      text: r.results.map((x) => (x.ok ? `Results for "${x.keyword}" (${x.items.length}):\n${x.items.map((i) => `#${i.rank} ${i.domain ?? "no domain"} | ${i.title ?? "no title"} | ${i.url ?? "no url"}`).join("\n")}` : `Lookup for "${x.keyword}" failed: ${x.error}`)).join("\n\n") + `\n\n${ok}/${r.results.length} lookups worked.`,
     };
   },
   search_serp_locations: async (ctx, a) => {
     const r = await searchSerpLocations(ctx, a as never);
-    return { data: r, text: r.locations.map((l) => `${l.locationCode}  ${l.locationName} (${l.locationType})`).join("\n") || "No locations matched." };
+    return { data: r, text: r.locations.map((l) => `${l.locationCode}  ${l.locationName} (${l.locationType})`).join("\n") || "No location matched that search." };
   },
 
   create_rank_tracker: async (ctx, a, env) => {
     const r = await createRankTracker(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, `/rank-tracking/${r.trackerId}`), text: `Created rank tracker ${r.trackerId} for ${r.config.domain}.` };
+    return { data: r, url: projectUrl(env, a.projectId, `/rank-tracking/${r.trackerId}`), text: `Rank tracker ${r.trackerId} now follows ${r.config.domain}.` };
   },
   get_rank_tracker: (ctx, a, env) => {
     const r = getRankTracker(ctx, a.projectId, a.trackerId);
@@ -157,54 +157,54 @@ export const HANDLERS: Record<string, Handler> = {
   },
   add_rank_tracking_keywords: (ctx, a) => {
     const r = addRankTrackingKeywords(ctx, a.projectId, a as never);
-    return { data: r, text: `Added ${r.added} of ${r.requested} keyword(s).` };
+    return { data: r, text: `${r.added} of ${r.requested} keyword${r.requested === 1 ? "" : "s"} added to the tracker.` };
   },
   remove_rank_tracking_keywords: (ctx, a) => {
     const r = removeRankTrackingKeywords(ctx, a.projectId, a as never);
-    return { data: r, text: `Removed ${r.removed} of ${r.requested} keyword(s).` };
+    return { data: r, text: `${r.removed} of ${r.requested} keyword${r.requested === 1 ? "" : "s"} taken off the tracker.` };
   },
   estimate_rank_tracker_cost: (ctx, a, env) => {
     const r = estimateRankTrackerCost(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, `/rank-tracking/${a.trackerId}`), text: `Estimated ${r.totalChecks} checks ≈ $${r.costUsd.toFixed(3)} (${r.costCredits} credits).` };
+    return { data: r, url: projectUrl(env, a.projectId, `/rank-tracking/${a.trackerId}`), text: `${r.totalChecks} rank checks would cost about $${r.costUsd.toFixed(3)} (${r.costCredits} credits).` };
   },
   run_rank_tracker: (ctx, a) => {
     const r = runRankTracker(ctx, a.projectId, a as never);
-    return { data: r, text: r.started ? `Started run ${r.runId}.` : `A run is already in progress (${r.blockingRunId}).` };
+    return { data: r, text: r.started ? `Rank check ${r.runId} is running.` : `Rank check ${r.blockingRunId} is still running; wait for it to finish.` };
   },
 
   run_site_audit: (ctx, a, env) => {
     const r = startAudit(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/audit"), text: `Started site audit ${r.auditId}. Poll get_audit_status.` };
+    return { data: r, url: projectUrl(env, a.projectId, "/audit"), text: `Site audit ${r.auditId} has begun. Call get_audit_status to follow progress.` };
   },
   list_site_audits: (ctx, a, env) => {
     const r = listAudits(ctx, a.projectId);
-    return { data: r, url: projectUrl(env, a.projectId, "/audit"), text: `${r.audits.length} audit(s).` };
+    return { data: r, url: projectUrl(env, a.projectId, "/audit"), text: `${r.audits.length} audit${r.audits.length === 1 ? "" : "s"} on record.` };
   },
   delete_site_audit: (ctx, a) => {
     const r = deleteAudit(ctx, a.projectId, a.auditId);
-    return { data: r, text: `Deleted audit ${r.auditId}.` };
+    return { data: r, text: `Audit ${r.auditId} was deleted.` };
   },
   get_audit_status: (ctx, a) => {
     const r = getAuditStatus(ctx, a.projectId, a.auditId);
     const s = r.status;
-    return { data: r, text: `Audit ${s.id}: ${s.status}, ${s.pagesCrawled}/${s.maxPages} pages. Issues: ${s.issueCounts.critical} critical, ${s.issueCounts.warning} warnings, ${s.issueCounts.info} info.` };
+    return { data: r, text: `Audit ${s.id} is ${s.status}: ${s.pagesCrawled} of ${s.maxPages} pages crawled. Problems found: ${s.issueCounts.critical} critical, ${s.issueCounts.warning} warning, ${s.issueCounts.info} informational.` };
   },
   get_audit_issues: (ctx, a) => {
     const r = getAuditIssues(ctx, a.projectId, a as never);
-    return { data: r, text: r.summary.map((s) => `[${s.severity}] ${s.type} ×${s.count}`).join("\n") || "No issues." };
+    return { data: r, text: r.summary.map((s) => `${s.severity.toUpperCase()}: ${s.type} on ${s.count} page${s.count === 1 ? "" : "s"}`).join("\n") || "The audit found no problems." };
   },
   get_audit_pages: (ctx, a) => {
     const r = getAuditPages(ctx, a.projectId, a as never);
-    return { data: r, text: `${r.total} page(s).\n${r.pages.slice(0, 50).map((p) => `${p.statusCode ?? "ERR"} ${p.url}`).join("\n")}` };
+    return { data: r, text: `${r.total} crawled page${r.total === 1 ? "" : "s"}:\n${r.pages.slice(0, 50).map((p) => `${p.statusCode ?? "failed"} ${p.url}`).join("\n")}` };
   },
 
   save_report: (ctx, a, env) => {
     const r = saveReport(ctx, a.projectId, env.baseUrl, a as never, env.clientLabel ?? "mcp");
-    return { data: r, url: r.url, text: `${r.created ? "Created" : "Updated"} report ${r.reportId}: ${r.url}` };
+    return { data: r, url: r.url, text: `Report ${r.reportId} ${r.created ? "created" : "updated"}; open it at ${r.url}` };
   },
   list_reports: (ctx, a, env) => {
     const r = listReports(ctx, a.projectId, env.baseUrl, a);
-    return { data: r, url: projectUrl(env, a.projectId, "/reports"), text: `${r.totalCount} report(s).\n${r.reports.map((x) => `- ${x.id}  ${x.title}`).join("\n")}` };
+    return { data: r, url: projectUrl(env, a.projectId, "/reports"), text: `${r.totalCount} saved report${r.totalCount === 1 ? "" : "s"}:\n${r.reports.map((x) => `* ${x.title} [${x.id}]`).join("\n")}` };
   },
   get_report: (ctx, a, env) => {
     const { report: { html, ...report } } = getReport(ctx, a.projectId, env.baseUrl, a as never) as { report: { html?: string } & Record<string, any> };
@@ -213,23 +213,23 @@ export const HANDLERS: Record<string, Handler> = {
   },
   set_report_sharing: (ctx, a, env) => {
     const r = setReportSharing(ctx, a.projectId, env.baseUrl, a as never);
-    return { data: r, url: r.url, text: r.public ? `Report is public: ${r.shareUrl}` : "Report is private." };
+    return { data: r, url: r.url, text: r.public ? `The report can be opened by anyone with this link: ${r.shareUrl}` : "The report is private; its share link is switched off." };
   },
   delete_report: (ctx, a, env) => {
     const r = deleteReport(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/reports"), text: `Deleted report ${r.reportId}.` };
+    return { data: r, url: projectUrl(env, a.projectId, "/reports"), text: `Report ${r.reportId} was deleted.` };
   },
   list_report_templates: (ctx, a, env) => {
     const r = listReportTemplates(ctx, a.projectId);
-    return { data: r, url: projectUrl(env, a.projectId, "/reports/templates"), text: `${r.templates.length} template(s).` };
+    return { data: r, url: projectUrl(env, a.projectId, "/reports/templates"), text: `${r.templates.length} report template${r.templates.length === 1 ? "" : "s"} available.` };
   },
   save_report_template: (ctx, a, env) => {
     const r = saveReportTemplate(ctx, a.projectId, env.baseUrl, a as never);
-    return { data: r, url: r.url, text: `${r.created ? "Created" : "Updated"} template ${r.templateId}.` };
+    return { data: r, url: r.url, text: `Template ${r.templateId} ${r.created ? "created" : "updated"}.` };
   },
   delete_report_template: (ctx, a, env) => {
     const r = deleteReportTemplate(ctx, a.projectId, a as never);
-    return { data: r, url: projectUrl(env, a.projectId, "/reports/templates"), text: `Deleted template ${r.templateId}.` };
+    return { data: r, url: projectUrl(env, a.projectId, "/reports/templates"), text: `Template ${r.templateId} was deleted.` };
   },
 
   // --- Not implemented in this release (listed for contract parity) ---

@@ -150,7 +150,7 @@ const label = (n: string) => n.split(",").map((s) => s.trim()).join(", ");
 async function assertLocalLocation(ctx: Ctx, m: Market, locationName: string) {
   const all = await serpLocationsForCountry(ctx, isoCountryCode(m.locationCode));
   if (all.some((l) => l.location_name === locationName)) return;
-  throw new AppError("VALIDATION_ERROR", `"${label(locationName)}" is not a city, county, or region we can find in ${countryName(m.locationCode)}.`);
+  throw new AppError("VALIDATION_ERROR", `No city, county or region called "${label(locationName)}" exists in ${countryName(m.locationCode)}. Use search_serp_locations to find the exact name.`);
 }
 
 function persist(ctx: Ctx, projectId: string, m: Market, rows: Enriched[]) {
@@ -180,7 +180,7 @@ async function researchOne(
   opts: { resultLimit: number; clickstream: boolean; group: boolean },
 ) {
   const seed = normalizeKeyword(s.seed);
-  if (!seed) throw new AppError("VALIDATION_ERROR", "Seed keyword is empty");
+  if (!seed) throw new AppError("VALIDATION_ERROR", "A seed keyword cannot be blank");
   const m = resolveMarket({ locationCode: s.locationCode, languageCode: s.languageCode }, project);
   assertLanguageForLocation(m.locationCode, m.languageCode);
   const provider = getKeywordDataProvider(m.locationCode);
@@ -224,7 +224,7 @@ export async function researchKeywords(
   input: { seeds: SeedInput[]; resultLimit?: number; includeClickstreamData?: boolean; groupKeywords?: boolean },
 ) {
   const project = getProject(ctx, projectId);
-  if (input.seeds.length > MAX_SEEDS_PER_CALL) throw new AppError("VALIDATION_ERROR", `Research at most ${MAX_SEEDS_PER_CALL} seeds per call.`);
+  if (input.seeds.length > MAX_SEEDS_PER_CALL) throw new AppError("VALIDATION_ERROR", `A single call can research up to ${MAX_SEEDS_PER_CALL} seeds; split the list.`);
   const opts = { resultLimit: input.resultLimit ?? 150, clickstream: Boolean(input.includeClickstreamData), group: Boolean(input.groupKeywords) };
   const results = await Promise.all(input.seeds.map(async (s) => {
     try {

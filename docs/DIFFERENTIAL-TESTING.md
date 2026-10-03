@@ -23,3 +23,7 @@ NEW is booted with `CREDIT_MARKUP=1.28` because the oracle applies its hosted ma
 
 `MATCH` identical after normalisation · `KNOWN_DIFF` differs for a documented reason · `DIFF` unexplained (fails the run)
 · `ERROR` a side could not complete the scenario · `NOT_TESTABLE` could not be exercised.
+
+
+## Note for the independent-rewrite branch
+Message wording is now closeseo's own, so the harness no longer compares error or summary text, nor the prose fields `message` and `scopeNote`. It still compares success/failure and every structured value, so functional parity is unchanged: 215 of 217 checks identical, 1 known branding difference, 1 not testable.

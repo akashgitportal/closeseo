@@ -50,12 +50,12 @@ export async function getSerpResults(
 async function assertLocalLocation(ctx: Ctx, m: Market, locationName: string) {
   const all = await serpLocationsForCountry(ctx, isoCountryCode(m.locationCode));
   if (all.some((l) => l.location_name === locationName)) return;
-  throw new AppError("VALIDATION_ERROR", `"${locationName.split(",").map((s) => s.trim()).join(", ")}" is not a city, county, or region we can find in this country.`);
+  throw new AppError("VALIDATION_ERROR", `No city, county or region called "${locationName.split(",").map((s) => s.trim()).join(", ")}" exists in this country. Use search_serp_locations to find the exact name.`);
 }
 
 export async function searchSerpLocations(ctx: Ctx, input: { query: string; countryCode: string }) {
   const iso = input.countryCode.trim();
-  if (!/^[A-Za-z]{2}$/.test(iso)) throw new AppError("VALIDATION_ERROR", "countryCode must be a 2-letter ISO code");
+  if (!/^[A-Za-z]{2}$/.test(iso)) throw new AppError("VALIDATION_ERROR", "countryCode must be a two-letter country code such as US");
   const all = await serpLocationsForCountry(ctx, iso);
   const q = input.query.trim().toLowerCase();
   const locations = all

@@ -13,18 +13,18 @@ export type Completion = {
   message: { content: string | null; tool_calls?: ToolCall[] };
   finishReason: string | null;
   usage: { promptTokens: number; completionTokens: number };
-  /** Real USD cost reported by OpenRouter (usage accounting); 0 when the provider did not report one. */
+  /** Actual USD charge as reported by OpenRouter's usage accounting; zero when none was reported. */
   costUsd: number;
   model: string;
 };
 
-/** One non-streaming chat completion through OpenRouter, with failures turned into messages a user can act on. */
+/** A single non-streaming chat completion via OpenRouter; failures are turned into messages the user can act on. */
 export async function chatCompletion(
   ctx: Ctx,
   req: { messages: ChatMessage[]; tools?: ToolDef[]; toolChoice?: "auto" | "none"; maxTokens?: number },
 ): Promise<Completion> {
   const key = ctx.config.openrouterKey;
-  if (!key) throw new AppError("NOT_CONFIGURED", "The assistant needs OPENROUTER_API_KEY.");
+  if (!key) throw new AppError("NOT_CONFIGURED", "The assistant cannot run without OPENROUTER_API_KEY.");
   checkBudget(ctx);
   let res: Response;
   try {
@@ -38,20 +38,20 @@ export async function chatCompletion(
       signal: AbortSignal.timeout(90_000),
     });
   } catch (e) {
-    throw new AppError("UPSTREAM_UNAVAILABLE", `Could not reach OpenRouter: ${(e as Error).message}`);
+    throw new AppError("UPSTREAM_UNAVAILABLE", `OpenRouter was unreachable: ${(e as Error).message}`);
   }
   const text = await res.text();
   let body: any;
   try { body = JSON.parse(text); } catch { body = null; }
   if (!res.ok) {
     const detail = body?.error?.message ?? text.slice(0, 200);
-    if (res.status === 401) throw new AppError("UNAUTHENTICATED", "OpenRouter rejected the API key. Check OPENROUTER_API_KEY.");
-    if (res.status === 402) throw new AppError("UPSTREAM_ERROR", "OpenRouter says the account is out of credit. Add credit and try again.");
-    if (res.status === 429) throw new AppError("UPSTREAM_ERROR", "OpenRouter is rate limiting this key. Wait a moment and try again.");
-    throw new AppError(res.status >= 500 ? "UPSTREAM_UNAVAILABLE" : "UPSTREAM_ERROR", `OpenRouter error (${res.status}): ${detail}`);
+    if (res.status === 401) throw new AppError("UNAUTHENTICATED", "OpenRouter did not accept the API key; check OPENROUTER_API_KEY.");
+    if (res.status === 402) throw new AppError("UPSTREAM_ERROR", "The OpenRouter account has no credit left. Top it up and retry.");
+    if (res.status === 429) throw new AppError("UPSTREAM_ERROR", "OpenRouter is throttling this key; pause briefly and retry.");
+    throw new AppError(res.status >= 500 ? "UPSTREAM_UNAVAILABLE" : "UPSTREAM_ERROR", `OpenRouter failure (${res.status}): ${detail}`);
   }
   const choice = body?.choices?.[0];
-  if (!choice?.message) throw new AppError("UPSTREAM_ERROR", body?.error?.message ? `OpenRouter error: ${body.error.message}` : "OpenRouter returned an unexpected response.");
+  if (!choice?.message) throw new AppError("UPSTREAM_ERROR", body?.error?.message ? `OpenRouter failure: ${body.error.message}` : "OpenRouter sent a reply in an unexpected shape.");
   const calls = (choice.message.tool_calls ?? []) as ToolCall[];
   const costUsd = typeof body.usage?.cost === "number" ? body.usage.cost : 0;
   if (costUsd > 0) recordSpend(ctx, { provider: "openrouter", endpoint: body.model ?? ctx.config.openrouterModel, costUsd });

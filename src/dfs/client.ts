@@ -50,10 +50,10 @@ export class DfsClient {
     path: string,
     body?: unknown,
   ): Promise<DfsCall<T>> {
-    // DataForSEO's abuse protection can pause an account for a short time after a burst of calls (task code 40201).
-    // A refused call is never billed, so waiting briefly and retrying is safe.
+    // After a burst of calls DataForSEO may pause the account briefly (task code 40201).
+    // Refused calls cost nothing, so it is safe to wait a little and try again.
     this.hooks.beforeCall?.(path);
-    const MAX_ATTEMPTS = 4; // waits of 1x, 2x, 4x the base delay: about 21 s by default
+    const MAX_ATTEMPTS = 4; // waits grow 1x, 2x, 4x the base delay (about 21 s with the defaults)
     for (let attempt = 1; ; attempt++) {
       const env = await this.raw(path, body === undefined ? undefined : [body]);
       const task = env.tasks?.[0];
@@ -74,10 +74,10 @@ export class DfsClient {
     if (code === 40201) return new AppError("UPSTREAM_PAUSED", msg);
     if (code === 40101 || code === 40100) return new AppError("UNAUTHENTICATED", msg);
     if ((code === 40200 || code === 40202) && path.startsWith("/v3/ai_optimization")) {
-      return new AppError("UPSTREAM_BILLING", "The connected DataForSEO account has a billing or balance issue");
+      return new AppError("UPSTREAM_BILLING", "The DataForSEO account has a billing or balance problem");
     }
     if (code === 40200 || code === 40202) {
-      return new AppError("UPSTREAM_ERROR", path.startsWith("/v3/backlinks") ? "The connected DataForSEO account has a billing or balance issue" : msg);
+      return new AppError("UPSTREAM_ERROR", path.startsWith("/v3/backlinks") ? "The DataForSEO account has a billing or balance problem" : msg);
     }
     if (code >= 40500 && code < 40600) return new AppError("VALIDATION_ERROR", msg);
     if (code >= 50000) return new AppError("UPSTREAM_UNAVAILABLE", msg);
@@ -107,11 +107,11 @@ export class DfsClient {
     } catch (e) {
       throw new AppError(
         "UPSTREAM_UNAVAILABLE",
-        `DataForSEO request failed: ${(e as Error).message}`,
+        `The DataForSEO request did not complete: ${(e as Error).message}`,
       );
     }
     if (!res.ok) {
-      // A 403 means the account itself is refused (for example "verify your account"); say why instead of a bare status.
+      // A 403 means the account itself is turned away (e.g. "verify your account"), so surface the reason rather than just the code.
       let why = "";
       if (res.status === 403) {
         try { const b = (await res.json()) as { status_message?: string }; if (b.status_message) why = `: ${b.status_message}`; } catch { /* body is not JSON */ }

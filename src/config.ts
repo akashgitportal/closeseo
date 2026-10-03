@@ -46,7 +46,7 @@ export type Config = {
 function positive(v: string | undefined, fallback: number, name: string): number {
   if (v === undefined || v === "") return fallback;
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`${name} must be a positive number (got "${v}")`);
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`${name} needs a number above zero, but received "${v}"`);
   return n;
 }
 
@@ -54,17 +54,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const mode = (env.AUTH_MODE ?? "local_noauth") as string;
   if (mode !== "local_noauth" && mode !== "api_key") {
     throw new Error(
-      `AUTH_MODE must be "local_noauth" or "api_key" (got "${mode}")`,
+      `AUTH_MODE can only be "local_noauth" or "api_key"; received "${mode}"`,
     );
   }
   if (mode === "api_key" && !env.CLOSESEO_API_KEY) {
-    throw new Error("AUTH_MODE=api_key requires CLOSESEO_API_KEY");
+    throw new Error("With AUTH_MODE=api_key you also have to set CLOSESEO_API_KEY");
   }
   const port = Number(env.PORT ?? 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`PORT must be 1-65535 (got "${env.PORT}")`);
+    throw new Error(`PORT has to be a whole number from 1 to 65535, but received "${env.PORT}"`);
   }
-  if (env.CLOSESEO_SECRET && env.CLOSESEO_SECRET.trim().length < 32) throw new Error("CLOSESEO_SECRET must be at least 32 characters");
+  if (env.CLOSESEO_SECRET && env.CLOSESEO_SECRET.trim().length < 32) throw new Error("CLOSESEO_SECRET needs at least 32 characters");
   return {
     port,
     host: env.HOST ?? "127.0.0.1",

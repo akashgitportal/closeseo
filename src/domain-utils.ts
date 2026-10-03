@@ -1,7 +1,7 @@
 import { AppError } from "./errors.ts";
 
 /** Reduce user input ("https://www.Example.com/path") to a bare lowercase host. */
-export const DOMAIN_MESSAGE = "Enter a valid domain like example.com";
+export const DOMAIN_MESSAGE = "That does not look like a domain name (expected something like example.com)";
 
 export function normalizeDomain(input: string, message = DOMAIN_MESSAGE): string {
   let s = input.trim().toLowerCase();

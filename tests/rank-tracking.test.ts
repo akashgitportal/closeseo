@@ -26,20 +26,20 @@ test("create: tool defaults (mobile, depth 40, manual), config shape, validation
   assert.deepEqual(Object.keys(t.config), ["id", "projectId", "domain", "locationCode", "languageCode", "locationName", "devices", "serpDepth", "scheduleInterval", "nextCheckAt", "isActive", "lastCheckedAt", "lastSkipReason", "createdAt"]);
   assert.deepEqual([t.config.domain, t.config.devices, t.config.serpDepth, t.config.scheduleInterval, t.config.locationCode, t.config.nextCheckAt, t.config.isActive], ["example.com", "mobile", 40, "manual", 2840, null, true]);
   assert.match(t.config.createdAt, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
-  assert.equal((await c.tool("create_rank_tracker", { projectId: pid })).content[0]!.text, "This domain + country combination is already being tracked");
+  assert.equal((await c.tool("create_rank_tracker", { projectId: pid })).content[0]!.text, "That domain is already tracked for this country");
   assert.equal((await tracker({ domain: "HTTPS://WWW.Other.com/x" })).config.domain, "other.com");
   const noDomain = (await c.tool("create_project", { name: "ND" })).structuredContent.project.id;
-  assert.equal((await c.tool("create_rank_tracker", { projectId: noDomain })).content[0]!.text, "Provide a domain or set the project's domain first");
+  assert.equal((await c.tool("create_rank_tracker", { projectId: noDomain })).content[0]!.text, "Give a domain, or set a domain on the project first");
   const sched = await tracker({ domain: "s.com", scheduleInterval: "daily" });
   assert.ok(new Date(sched.config.nextCheckAt) > new Date()); const h = new Date(sched.config.nextCheckAt).getUTCHours(); assert.ok(h >= 4 && h <= 9, "random 04-09 UTC slot");
-  assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "w.com", scheduleInterval: "weekly", scheduleTime: { hour: 1, minute: 0 } })).content[0]!.text, "A weekly schedule time needs a weekday");
-  assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "m.com", scheduleTime: { hour: 1, minute: 0 } })).content[0]!.text, "A schedule time needs a daily, weekly, or monthly schedule");
+  assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "w.com", scheduleInterval: "weekly", scheduleTime: { hour: 1, minute: 0 } })).content[0]!.text, "Weekly checks need a weekday for the run time");
+  assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "m.com", scheduleTime: { hour: 1, minute: 0 } })).content[0]!.text, "A run time only applies to daily, weekly or monthly schedules");
   const berlin = await tracker({ domain: "b.com", scheduleInterval: "daily", scheduleTime: { hour: 7, minute: 15, timeZone: "Europe/Berlin" } });
   assert.match(berlin.config.nextCheckAt, /T0[56]:15:00\.000Z$/);
   assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "l.com", locationName: "Atlantis" })).isError, true);
   const local = await tracker({ domain: "l.com", locationName: "New York,New York,United States" });
   assert.equal(local.config.locationName, "New York,New York,United States");
-  assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "l.com", locationName: "New York,New York,United States" })).content[0]!.text, "This domain + city combination is already being tracked");
+  assert.equal((await c.tool("create_rank_tracker", { projectId: pid, domain: "l.com", locationName: "New York,New York,United States" })).content[0]!.text, "That domain is already tracked for this city");
   assert.deepEqual((await c.tool("get_rank_tracker", { projectId: pid })).structuredContent.configs.length, 5);
 });
 
@@ -56,7 +56,7 @@ test("keywords: lower-cased by default, matchCase keeps case, dedupe, counts, re
   const got = await get(t.trackerId);
   assert.deepEqual(got.results.rows.map((r: any) => r.keyword), ["beta", "Nodex", "nodex"]);
   assert.deepEqual(Object.keys(got.results.rows[0]), ["trackingKeywordId", "keyword", "matchCase", "searchVolume", "keywordDifficulty", "cpc", "desktop", "mobile"]);
-  assert.equal((await add("00000000-0000-0000-0000-000000000000", ["x"])).content[0]!.text, "Rank tracking config not found");
+  assert.equal((await add("00000000-0000-0000-0000-000000000000", ["x"])).content[0]!.text, "No such rank tracker in this project");
 });
 
 test("cost estimate uses live per-call pricing; CREDIT_MARKUP reproduces hosted numbers", async () => {
@@ -77,7 +77,7 @@ test("cost estimate uses live per-call pricing; CREDIT_MARKUP reproduces hosted 
 test("scheduled trackers need an explicit per-check credit ceiling for every addition", async () => {
   const t = await tracker({ scheduleInterval: "daily" });
   const r = await add(t.trackerId, ["one", "two"]);
-  assert.ok(r.isError); assert.match(r.content[0]!.text, /^Adding these keywords would make each daily scheduled check cost a nominal queued estimate of \d+ credits \(~\$0\.\d{4} per check; ~\d+ credits\/month\)\. Call estimate_rank_tracker_cost/);
+  assert.ok(r.isError); assert.match(r.content[0]!.text, /^With these keywords every daily check would cost about \d+ credits at queued prices \(around \$0\.\d{4} each, roughly \d+ credits a month\)\. Run estimate_rank_tracker_cost/);
   assert.equal((await get(t.trackerId)).config.lastCheckedAt, null);
   assert.equal((await get(t.trackerId)).results.rows.length, 0, "nothing added on refusal");
   assert.ok((await add(t.trackerId, ["one", "two"], { maxEstimatedScheduledCheckCredits: 1 })).isError, "ceiling below the estimate");
@@ -120,10 +120,10 @@ test("a run sends the tracker's device, depth and location", async () => {
 });
 test("run guards: empty tracker, over-budget, missing key, concurrent run", async () => {
   const t = await tracker({ devices: "both", serpDepth: 20 });
-  assert.equal((await c.tool("run_rank_tracker", { projectId: pid, trackerId: t.trackerId, maxCostCredits: 1000 })).content[0]!.text, "No keywords to track. Add keywords to this domain first.");
+  assert.equal((await c.tool("run_rank_tracker", { projectId: pid, trackerId: t.trackerId, maxCostCredits: 1000 })).content[0]!.text, "This tracker has no keywords yet; add some before checking");
   await add(t.trackerId, ["a", "b"]);
   const over = await c.tool("run_rank_tracker", { projectId: pid, trackerId: t.trackerId, maxCostCredits: 10 });
-  assert.equal(over.content[0]!.text, "The current rank check costs 16 credits, above the approved maximum of 10. Call estimate_rank_tracker_cost again and ask the user to approve the updated amount.");
+  assert.equal(over.content[0]!.text, "This check would cost 16 credits, more than the 10 that was approved. Get a fresh figure from estimate_rank_tracker_cost and have the user confirm it before retrying");
   assert.equal(dfs.stats().total, 0, "nothing was bought");
   await control({ mode: "slow", ms: 300 });
   const first = (await c.tool("run_rank_tracker", { projectId: pid, trackerId: t.trackerId, maxCostCredits: 1000 })).structuredContent;

@@ -23,7 +23,7 @@ type TrackerRow = {
   is_active: number; last_skip_reason: string | null;
 };
 
-/** "YYYY-MM-DD HH:MM:SS" in UTC, the timestamp style used for stored rank-tracking dates. */
+/** UTC timestamp as "YYYY-MM-DD HH:MM:SS", the format stored for tracker dates. */
 const sqlTs = (d = new Date()) => d.toISOString().slice(0, 19).replace("T", " ");
 
 function toConfig(ctx: Ctx, r: TrackerRow) {
@@ -37,7 +37,7 @@ function toConfig(ctx: Ctx, r: TrackerRow) {
 
 function tracker(ctx: Ctx, projectId: string, trackerId: string): TrackerRow {
   const r = ctx.db.prepare("SELECT * FROM rank_trackers WHERE id=? AND project_id=?").get(trackerId, projectId) as TrackerRow | undefined;
-  if (!r) throw new AppError("NOT_FOUND", "Rank tracking config not found");
+  if (!r) throw new AppError("NOT_FOUND", "No such rank tracker in this project");
   return r;
 }
 const keywordsOf = (ctx: Ctx, trackerId: string) => ctx.db.prepare("SELECT id, keyword, match_case, search_volume, keyword_difficulty, cpc FROM rank_tracker_keywords WHERE tracker_id=? ORDER BY created_at, rowid").all(trackerId) as
@@ -45,16 +45,16 @@ const keywordsOf = (ctx: Ctx, trackerId: string) => ctx.db.prepare("SELECT id, k
 
 function normalizeTrackedDomain(input: string): string {
   const d = input.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/[/?#].*$/, "").replace(/\/+$/, "").replace(/^www\./, "");
-  if (!d) throw new AppError("VALIDATION_ERROR", "Invalid domain");
+  if (!d) throw new AppError("VALIDATION_ERROR", "That is not a usable domain");
   return d;
 }
 
 function resolveNextCheckAt(interval: ScheduleInterval, time: ScheduleTime | undefined): string | null {
   if (interval !== "manual") {
-    if (interval === "weekly" && time && time.weekday === undefined) throw new AppError("VALIDATION_ERROR", "A weekly schedule time needs a weekday");
+    if (interval === "weekly" && time && time.weekday === undefined) throw new AppError("VALIDATION_ERROR", "Weekly checks need a weekday for the run time");
     return computeNextCheckAt(interval, null, time);
   }
-  if (time) throw new AppError("VALIDATION_ERROR", "A schedule time needs a daily, weekly, or monthly schedule");
+  if (time) throw new AppError("VALIDATION_ERROR", "A run time only applies to daily, weekly or monthly schedules");
   return null;
 }
 
@@ -64,21 +64,21 @@ export async function createRankTracker(
 ) {
   const p = getProject(ctx, projectId);
   const domainInput = i.domain ?? p.domain;
-  if (!domainInput) throw new AppError("VALIDATION_ERROR", "Provide a domain or set the project's domain first");
+  if (!domainInput) throw new AppError("VALIDATION_ERROR", "Give a domain, or set a domain on the project first");
   const domain = normalizeTrackedDomain(domainInput);
   const m = resolveMarket(i, p);
   const interval = i.scheduleInterval ?? "manual";
-  if (i.scheduleTime?.timeZone && !isValidTimeZone(i.scheduleTime.timeZone)) throw new AppError("VALIDATION_ERROR", `Unknown time zone "${i.scheduleTime.timeZone}"`);
+  if (i.scheduleTime?.timeZone && !isValidTimeZone(i.scheduleTime.timeZone)) throw new AppError("VALIDATION_ERROR", `"${i.scheduleTime.timeZone}" is not a recognised time zone`);
   const next = resolveNextCheckAt(interval, i.scheduleTime);
   const locationName = i.locationName ?? null;
   if (locationName) {
     const all = await serpLocationsForCountry(ctx, isoCountryCode(m.locationCode));
-    if (!all.some((l) => l.location_name === locationName)) throw new AppError("VALIDATION_ERROR", `"${locationName}" is not a location we can find in this country.`);
+    if (!all.some((l) => l.location_name === locationName)) throw new AppError("VALIDATION_ERROR", `"${locationName}" does not match any place we can look up in this country`);
   }
   const dup = ctx.db.prepare("SELECT 1 FROM rank_trackers WHERE project_id=? AND domain=? AND location_code=? AND COALESCE(location_name,'')=? AND is_active=1").get(projectId, domain, m.locationCode, locationName ?? "");
-  if (dup) throw new AppError("VALIDATION_ERROR", locationName ? "This domain + city combination is already being tracked" : "This domain + country combination is already being tracked");
+  if (dup) throw new AppError("VALIDATION_ERROR", locationName ? "That domain is already tracked for this city" : "That domain is already tracked for this country");
   const count = (ctx.db.prepare("SELECT COUNT(*) AS n FROM rank_trackers WHERE project_id=?").get(projectId) as { n: number }).n;
-  if (count >= MAX_CONFIGS_PER_PROJECT) throw new AppError("VALIDATION_ERROR", `Maximum ${MAX_CONFIGS_PER_PROJECT} tracked domains per project`);
+  if (count >= MAX_CONFIGS_PER_PROJECT) throw new AppError("VALIDATION_ERROR", `A project can track at most ${MAX_CONFIGS_PER_PROJECT} domains`);
   const id = newId();
   ctx.db.prepare(
     `INSERT INTO rank_trackers (id,project_id,domain,location_code,language_code,location_name,devices,serp_depth,schedule_interval,next_run_at,created_at)
@@ -109,7 +109,7 @@ export function getRankTracker(ctx: Ctx, projectId: string, trackerId?: string) 
   const device = (kwId: string, dev: "desktop" | "mobile") => {
     const key = `${kwId}:${dev}`;
     const cur = latest.get(key);
-    // Compare against the newest check from before the window, else the earliest check we have.
+    // "Previous" means the latest check older than the comparison window, falling back to the very first check.
     const prev = (beforeCutoff.get(key) ?? earliest.get(key))?.position ?? null;
     return { position: cur?.position ?? null, previousPosition: prev, rankingUrl: cur?.url ?? null, serpFeatures: cur ? features(cur.serp_features) : [] };
   };
@@ -127,7 +127,7 @@ const scheduledOf = (t: TrackerRow): ScheduledInterval | null => (t.schedule_int
 
 function scheduledGateError(interval: ScheduledInterval, e: ReturnType<typeof estimateScheduled>) {
   return new AppError("VALIDATION_ERROR",
-    `Adding these keywords would make each ${interval} scheduled check cost a nominal queued estimate of ${e.costCredits} credits (~$${e.costUsd.toFixed(4)} per check; ~${e.monthlyCostCredits} credits/month). Call estimate_rank_tracker_cost with additionalKeywords, show the recurring estimate and live-fallback caveat to the user, then retry with maxEstimatedScheduledCheckCredits set to the approved per-check estimate. Live fallback for rejected, failed, or timed-out queued tasks may use additional separately billed credits.`);
+    `With these keywords every ${interval} check would cost about ${e.costCredits} credits at queued prices (around $${e.costUsd.toFixed(4)} each, roughly ${e.monthlyCostCredits} credits a month). Run estimate_rank_tracker_cost with additionalKeywords, tell the user the recurring price, and mention that any task that is rejected, fails or times out is re-run live and billed again. Once they agree, repeat the call with maxEstimatedScheduledCheckCredits set to the per-check figure they accepted.`);
 }
 
 export function addRankTrackingKeywords(
@@ -136,7 +136,7 @@ export function addRankTrackingKeywords(
 ) {
   const t = tracker(ctx, projectId, i.trackerId);
   const existing = keywordsOf(ctx, t.id);
-  if (existing.length >= MAX_KEYWORDS_PER_CONFIG) throw new AppError("VALIDATION_ERROR", `Maximum ${MAX_KEYWORDS_PER_CONFIG} keywords per domain. Currently tracking ${existing.length}.`);
+  if (existing.length >= MAX_KEYWORDS_PER_CONFIG) throw new AppError("VALIDATION_ERROR", `A tracked domain can hold at most ${MAX_KEYWORDS_PER_CONFIG} keywords; this one already has ${existing.length}`);
   const matchCase = Boolean(i.matchCase);
   const have = new Set(existing.map((k) => k.keyword));
   const seen = new Set<string>();
@@ -151,7 +151,7 @@ export function addRankTrackingKeywords(
   let est: ReturnType<typeof estimateScheduled> | undefined;
   if (fresh.length > 0 && interval) {
     est = estimateScheduled([...existing.map((k) => k.keyword), ...fresh], t.devices, t.serp_depth, interval, ctx.config.creditMarkup);
-    // Every addition to a scheduled tracker needs an explicit per-check credit ceiling.
+    // Scheduled trackers only accept new keywords when the caller names the per-check price they accept.
     if (i.maxEstimatedScheduledCheckCredits == null || est.costCredits > i.maxEstimatedScheduledCheckCredits) throw scheduledGateError(interval, est);
   }
   const addedIds: string[] = [];
@@ -178,7 +178,7 @@ export function removeRankTrackingKeywords(ctx: Ctx, projectId: string, i: { tra
 export function estimateRankTrackerCost(ctx: Ctx, projectId: string, i: { trackerId: string; additionalKeywordCount?: number; additionalKeywords?: string[] }) {
   const t = tracker(ctx, projectId, i.trackerId);
   const existing = keywordsOf(ctx, t.id).map((k) => k.keyword);
-  // A bare count has no keyword text, so it prices as plain keywords.
+  // With only a count (no text) there is nothing to inspect, so price them as ordinary keywords.
   const extra = i.additionalKeywords ?? Array<string>(i.additionalKeywordCount ?? 0).fill("");
   const keywords = [...existing, ...extra].slice(0, Math.max(existing.length, MAX_KEYWORDS_PER_CONFIG));
   const { costUsd, costCredits } = estimateRankCheck(keywords, t.devices, t.serp_depth, "live", ctx.config.creditMarkup);
@@ -191,7 +191,7 @@ export function estimateRankTrackerCost(ctx: Ctx, projectId: string, i: { tracke
 }
 
 const inflight = new Set<Promise<unknown>>();
-/** Resolves once every background rank run has settled (used by tests and graceful shutdown). */
+/** Waits until all background rank runs have finished; used by tests and shutdown. */
 export async function awaitRankRuns() {
   while (inflight.size) await Promise.allSettled([...inflight]);
 }
@@ -203,16 +203,16 @@ export function runRankTracker(ctx: Ctx, projectId: string, i: { trackerId: stri
 function startRankRun(ctx: Ctx, projectId: string, i: { trackerId: string; maxCostCredits: number }, trigger: "manual" | "scheduled") {
   const t = tracker(ctx, projectId, i.trackerId);
   const kws = keywordsOf(ctx, t.id);
-  if (kws.length === 0) throw new AppError("VALIDATION_ERROR", "No keywords to track. Add keywords to this domain first.");
+  if (kws.length === 0) throw new AppError("VALIDATION_ERROR", "This tracker has no keywords yet; add some before checking");
   const method = trigger === "scheduled" ? "queued" : "live";
   if (trigger === "manual") {
     const { costCredits } = estimateRankCheck(kws.map((k) => k.keyword), t.devices, t.serp_depth, "live", ctx.config.creditMarkup);
     if (costCredits > i.maxCostCredits)
-      throw new AppError("VALIDATION_ERROR", `The current rank check costs ${costCredits} credits, above the approved maximum of ${i.maxCostCredits}. Call estimate_rank_tracker_cost again and ask the user to approve the updated amount.`);
+      throw new AppError("VALIDATION_ERROR", `This check would cost ${costCredits} credits, more than the ${i.maxCostCredits} that was approved. Get a fresh figure from estimate_rank_tracker_cost and have the user confirm it before retrying`);
   }
   const active = ctx.db.prepare("SELECT id FROM rank_runs WHERE tracker_id=? AND status IN ('pending','running') ORDER BY created_at LIMIT 1").get(t.id) as { id: string } | undefined;
   if (active) return { trackerId: t.id, started: false, blockingRunId: active.id };
-  if (!ctx.dfs.configured) throw new AppError("NOT_CONFIGURED", "DATAFORSEO_API_KEY is not set");
+  if (!ctx.dfs.configured) throw new AppError("NOT_CONFIGURED", "No DataForSEO key is configured (DATAFORSEO_API_KEY)");
   const runId = newId();
   ctx.db.prepare("INSERT INTO rank_runs (id,tracker_id,status,trigger,keywords_total,created_at) VALUES (?,?,'pending',?,?,?)").run(runId, t.id, trigger, kws.length, nowIso());
   const p = executeRun(ctx, t, runId, method).finally(() => inflight.delete(p));
@@ -259,7 +259,7 @@ async function executeRun(ctx: Ctx, t: TrackerRow, runId: string, method: "live"
   try {
     if (method === "live") await live(checks);
     else {
-      // Queued checks are posted in batches and polled; anything rejected, failed or timed out falls back to live.
+      // Queued checks go out in batches and are polled; whatever is rejected, fails or runs out of time is re-checked live.
       const leftovers: Check[] = [];
       for (let i = 0; i < checks.length && !fatal; i += MAX_TASKS_PER_POST) {
         const batch = checks.slice(i, i + MAX_TASKS_PER_POST);
@@ -300,24 +300,24 @@ async function executeRun(ctx: Ctx, t: TrackerRow, runId: string, method: "live"
   void done;
 }
 
-/** Startup recovery: runs left active by a crash/restart can never finish. */
+/** Run at startup: a run still marked active after a restart will never complete, so mark it failed. */
 export function failInterruptedRuns(ctx: Ctx): number {
-  return Number(ctx.db.prepare("UPDATE rank_runs SET status='failed', error_message='Interrupted by a server restart', completed_at=? WHERE status IN ('pending','running')").run(nowIso()).changes);
+  return Number(ctx.db.prepare("UPDATE rank_runs SET status='failed', error_message='Stopped because the server restarted', completed_at=? WHERE status IN ('pending','running')").run(nowIso()).changes);
 }
 
-/** Start every active tracker whose scheduled time has arrived. Returns the number started. */
+/** Starts each active tracker whose scheduled time has passed and returns how many were started. */
 export function runDueTrackers(ctx: Ctx, now = new Date()): number {
   const due = ctx.db.prepare("SELECT * FROM rank_trackers WHERE is_active=1 AND schedule_interval!='manual' AND next_run_at IS NOT NULL AND next_run_at<=?").all(now.toISOString()) as TrackerRow[];
   let started = 0;
   for (const t of due) {
-    // Advance from the previous anchor so a late tick never drifts the schedule.
+    // Step forward from the old anchor so a late timer tick does not shift the schedule.
     const next = computeNextCheckAt(t.schedule_interval as ScheduledInterval, t.next_run_at, undefined, now.getTime());
     ctx.db.prepare("UPDATE rank_trackers SET next_run_at=? WHERE id=?").run(next, t.id);
     try {
       const r = runRankTracker(ctx, t.project_id, { trackerId: t.id, maxCostCredits: Number.MAX_SAFE_INTEGER }, "scheduled");
       if (r.started) started++;
     } catch (e) {
-      const reason = (e as Error).message.startsWith("No keywords") ? "no_keywords" : null;
+      const reason = (e as Error).message.startsWith("This tracker has no keywords") ? "no_keywords" : null;
       if (reason) ctx.db.prepare("UPDATE rank_trackers SET last_skip_reason=? WHERE id=?").run(reason, t.id);
     }
   }
@@ -329,22 +329,22 @@ export function runDueTrackers(ctx: Ctx, now = new Date()): number {
 const DEVICES = ["desktop", "mobile", "both"] as const;
 const INTERVALS = ["manual", "daily", "weekly", "monthly"] as const;
 
-/** Change a tracker's domain, market, devices, depth, schedule, or archive/restore it (`isActive: false` hides it from the list). */
+/** Edits a tracker (domain, market, devices, depth, schedule) or archives/restores it; `isActive: false` removes it from the list. */
 export async function updateRankTracker(ctx: Ctx, projectId: string, trackerId: string, i: Record<string, any>) {
   const t = tracker(ctx, projectId, trackerId);
   const bad = (m: string) => new AppError("VALIDATION_ERROR", m);
-  if (i.devices !== undefined && !(DEVICES as readonly unknown[]).includes(i.devices)) throw bad("devices must be desktop, mobile or both");
-  if (i.scheduleInterval !== undefined && !(INTERVALS as readonly unknown[]).includes(i.scheduleInterval)) throw bad("scheduleInterval must be manual, daily, weekly or monthly");
-  if (i.serpDepth !== undefined && (!Number.isInteger(i.serpDepth) || i.serpDepth < 10 || i.serpDepth > 100 || i.serpDepth % 10 !== 0)) throw bad("serpDepth must be a multiple of 10 from 10 to 100");
-  if (i.isActive !== undefined && typeof i.isActive !== "boolean") throw bad("isActive must be true or false");
-  if (i.locationCode !== undefined && (!Number.isInteger(i.locationCode) || i.locationCode <= 0)) throw bad("locationCode must be a positive whole number");
-  if (i.scheduleTime?.timeZone && !isValidTimeZone(i.scheduleTime.timeZone)) throw bad(`Unknown time zone "${i.scheduleTime.timeZone}"`);
+  if (i.devices !== undefined && !(DEVICES as readonly unknown[]).includes(i.devices)) throw bad("devices has to be desktop, mobile or both");
+  if (i.scheduleInterval !== undefined && !(INTERVALS as readonly unknown[]).includes(i.scheduleInterval)) throw bad("scheduleInterval has to be manual, daily, weekly or monthly");
+  if (i.serpDepth !== undefined && (!Number.isInteger(i.serpDepth) || i.serpDepth < 10 || i.serpDepth > 100 || i.serpDepth % 10 !== 0)) throw bad("serpDepth has to be 10, 20, … up to 100");
+  if (i.isActive !== undefined && typeof i.isActive !== "boolean") throw bad("isActive has to be true or false");
+  if (i.locationCode !== undefined && (!Number.isInteger(i.locationCode) || i.locationCode <= 0)) throw bad("locationCode has to be a positive whole number");
+  if (i.scheduleTime?.timeZone && !isValidTimeZone(i.scheduleTime.timeZone)) throw bad(`"${i.scheduleTime.timeZone}" is not a recognised time zone`);
   const set: Record<string, unknown> = {};
   if (i.domain !== undefined) set.domain = normalizeTrackedDomain(String(i.domain));
   if (i.locationCode !== undefined) set.location_code = i.locationCode;
-  if (i.languageCode !== undefined) { if (typeof i.languageCode !== "string" || !i.languageCode) throw bad("languageCode must be text"); set.language_code = i.languageCode; }
+  if (i.languageCode !== undefined) { if (typeof i.languageCode !== "string" || !i.languageCode) throw bad("languageCode has to be text"); set.language_code = i.languageCode; }
   if (i.locationName !== undefined) {
-    if (i.locationName !== null && (typeof i.locationName !== "string" || !i.locationName || i.locationName.length > 200)) throw bad("locationName must be 1-200 characters, or null");
+    if (i.locationName !== null && (typeof i.locationName !== "string" || !i.locationName || i.locationName.length > 200)) throw bad("locationName has to be 1–200 characters, or null to clear it");
     set.location_name = i.locationName;
   }
   if (i.devices !== undefined) set.devices = i.devices;
@@ -356,15 +356,15 @@ export async function updateRankTracker(ctx: Ctx, projectId: string, trackerId: 
   const marketChanged = i.locationName !== undefined || i.locationCode !== undefined || i.languageCode !== undefined;
   if (marketChanged && locationName) {
     const all = await serpLocationsForCountry(ctx, isoCountryCode(locationCode));
-    if (!all.some((l) => l.location_name === locationName)) throw bad(`"${locationName}" is not a location we can find in this country.`);
+    if (!all.some((l) => l.location_name === locationName)) throw bad(`"${locationName}" does not match any place we can look up in this country`);
   }
   const identityChanged = set.domain !== undefined || set.location_code !== undefined || i.locationName !== undefined || i.isActive === true;
   if (identityChanged && ((set.is_active ?? t.is_active) === 1)) {
     const dup = ctx.db.prepare("SELECT 1 FROM rank_trackers WHERE project_id=? AND domain=? AND location_code=? AND COALESCE(location_name,'')=? AND is_active=1 AND id<>?")
       .get(projectId, (set.domain as string | undefined) ?? t.domain, locationCode, locationName ?? "", t.id);
-    if (dup) throw bad(locationName ? "This domain + city combination is already being tracked" : "This domain + country combination is already being tracked");
+    if (dup) throw bad(locationName ? "That domain is already tracked for this city" : "That domain is already tracked for this country");
   }
-  // The anchor of a schedule only moves when the schedule really changed, so editing devices does not shift the run time.
+  // Only re-anchor the schedule when it actually changed, so editing something else keeps the run time.
   const interval = (i.scheduleInterval ?? t.schedule_interval) as ScheduleInterval;
   if (i.scheduleTime || interval !== t.schedule_interval || (interval !== "manual" && !t.next_run_at)) {
     set.schedule_interval = interval;
@@ -377,15 +377,15 @@ export async function updateRankTracker(ctx: Ctx, projectId: string, trackerId: 
 
 function sinceDays(v: unknown): number {
   const n = v === undefined || v === null || v === "" ? 365 : Number(v);
-  if (!Number.isInteger(n) || n < 1 || n > 730) throw new AppError("VALIDATION_ERROR", "sinceDays must be a whole number from 1 to 730");
+  if (!Number.isInteger(n) || n < 1 || n > 730) throw new AppError("VALIDATION_ERROR", "sinceDays has to be a whole number between 1 and 730");
   return n;
 }
 function deviceOf(v: unknown): "desktop" | "mobile" {
-  if (v !== "desktop" && v !== "mobile") throw new AppError("VALIDATION_ERROR", "device must be desktop or mobile");
+  if (v !== "desktop" && v !== "mobile") throw new AppError("VALIDATION_ERROR", "device has to be desktop or mobile");
   return v;
 }
 
-/** Every completed check of one keyword, oldest first. */
+/** All finished checks for a single keyword, earliest first. */
 export function getRankKeywordHistory(ctx: Ctx, projectId: string, trackerId: string, keywordId: string, days?: unknown) {
   const t = tracker(ctx, projectId, trackerId);
   const cutoff = sqlTs(new Date(Date.now() - sinceDays(days) * 86_400_000));
@@ -395,7 +395,7 @@ export function getRankKeywordHistory(ctx: Ctx, projectId: string, trackerId: st
   ).all(t.id, keywordId, cutoff) as { device: "desktop" | "mobile"; checkedAt: string; position: number | null }[]);
 }
 
-/** Per completed run: how many keywords sit in top 3, 4-10, 11-20, or outside (including unranked). */
+/** For each finished run, a count of keywords in positions 1-3, 4-10, 11-20 and everywhere else (unranked included). */
 export function getRankConfigTrend(ctx: Ctx, projectId: string, trackerId: string, device: unknown, days?: unknown) {
   const t = tracker(ctx, projectId, trackerId);
   const dev = deviceOf(device);
@@ -411,12 +411,12 @@ export function getRankConfigTrend(ctx: Ctx, projectId: string, trackerId: strin
   return rows.map((r) => ({ runId: r.runId, checkedAt: r.checkedAt, top3: r.top3 || 0, top4to10: r.top4to10 || 0, top11to20: r.top11to20 || 0, notRanking: Math.max(0, r.total - (r.top3 || 0) - (r.top4to10 || 0) - (r.top11to20 || 0)) }));
 }
 
-/** Position of every keyword in the most recent completed runs (default 12, at most 26), oldest run first. */
+/** Keyword positions across the latest finished runs (12 by default, 26 at most), earliest run first. */
 export function getRankPositionMatrix(ctx: Ctx, projectId: string, trackerId: string, device: unknown, limit?: unknown) {
   const t = tracker(ctx, projectId, trackerId);
   const dev = deviceOf(device);
   const n = limit === undefined || limit === null || limit === "" ? 12 : Number(limit);
-  if (!Number.isInteger(n) || n < 1 || n > 26) throw new AppError("VALIDATION_ERROR", "runLimit must be a whole number from 1 to 26");
+  if (!Number.isInteger(n) || n < 1 || n > 26) throw new AppError("VALIDATION_ERROR", "runLimit has to be a whole number between 1 and 26");
   return ctx.db.prepare(
     `SELECT s.run_id AS runId, u.started_at AS checkedAt, s.keyword_id AS trackingKeywordId, s.position AS position
      FROM rank_snapshots s JOIN rank_runs u ON u.id=s.run_id

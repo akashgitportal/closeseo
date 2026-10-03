@@ -37,7 +37,7 @@ test("every listed tool has a handler: all 58 are implemented", async () => {
   }
   assert.equal(UNSUPPORTED_TOOLS.length, 0, "nothing is left unimplemented");
   const r = await c.tool("get_business_profile", { projectId: pid });
-  assert.ok(r.isError); assert.equal(r.content[0]!.text, "Provide exactly one business identifier: businessName, cid, or placeId.");
+  assert.ok(r.isError); assert.match(r.content[0]!.text, /exactly one of businessName, cid or placeId/);
 });
 test("protocol edge cases: notifications, batch, unknown method/tool, bad JSON, non-POST", async () => {
   assert.equal((await c.post("/mcp", { jsonrpc: "2.0", method: "notifications/initialized" })).status, 202);
@@ -75,7 +75,7 @@ test("project lifecycle and error shape", async () => {
   const list = await c.tool("list_projects");
   assert.ok(list.structuredContent.projects.length >= 2);
   const nf = await c.tool("get_project_context", { projectId: "00000000-0000-0000-0000-000000000000" });
-  assert.deepEqual([nf.isError, nf.content[0]!.text], [true, "NOT_FOUND"]);
+  assert.deepEqual([nf.isError, nf.content[0]!.text], [true, "No project with that id exists"]);
 });
 
 test("whoami matches self-hosted semantics", async () => {
@@ -156,7 +156,7 @@ test("DataForSEO-backed read tools return schema-valid output", async () => {
   assert.equal(dfs.stats().total, callsBefore, "identical research is served from cache");
   assert.ok((await c.tool("research_keywords", { projectId: pid, seeds: [{ seed: "x", languageCode: "ru" }] })).structuredContent.results[0].ok === false, "unsupported language for the market is a per-seed failure");
   const local = (await c.tool("research_keywords", { projectId: pid, seeds: [{ seed: "seo tools", locationName: "New York,New York,United States" }, { seed: "seo tools", locationName: "Atlantis" }] })).structuredContent.results;
-  assert.equal(local[0].ok, true); assert.equal(local[1].ok, false); assert.match(local[1].error, /not a city, county, or region we can find in United States/);
+  assert.equal(local[0].ok, true); assert.equal(local[1].ok, false); assert.match(local[1].error, /No city, county or region called "Atlantis" exists in United States/);
   const m = (await c.tool("get_keyword_metrics", { projectId: pid, keywords: ["b kw", "a kw", "a kw"], sortBy: "search_volume" })).structuredContent.keywords;
   assert.equal(m.length, 3, "inputs are passed through as given, not deduplicated"); assert.deepEqual(Object.keys(m[0]), ["keyword", "search_volume", "keyword_difficulty", "main_intent", "cpc", "competition", "competition_level", "monthly_searches"]);
   assert.equal(m[0].monthly_searches.length, 12); assert.ok(m[0].search_volume >= m[1].search_volume);
@@ -195,10 +195,10 @@ test("DataForSEO-backed read tools return schema-valid output", async () => {
   assert.equal(bo.scope, "subdomains"); assert.equal(bo.target, "example.com");
   assert.equal(typeof bo.overview.overview.summary.backlinks, "number"); assert.ok(bo.overview.overview.trends.length > 0);
   assert.deepEqual([bo.referringDomains.page, bo.referringDomains.pageSize, bo.referringDomains.rows[0].domain], [1, 100, "ref0.org"]);
-  assert.match((await c.tool("get_backlinks_overview", { projectId: pid, target: "example.com", scope: "domain" })).structuredContent.scopeNote, /excludes subdomains/);
+  assert.match((await c.tool("get_backlinks_overview", { projectId: pid, target: "example.com", scope: "domain" })).structuredContent.scopeNote, /leaves out subdomains/);
   const bsub = (await c.tool("get_backlinks_overview", { projectId: pid, target: "https://example.com/blog/" })).structuredContent;
   assert.deepEqual([bsub.scope, bsub.target, bsub.referringDomains], ["subfolder", "example.com/blog", undefined]);
-  assert.match(bsub.scopeNote, /filtered backlink totals/);
+  assert.match(bsub.scopeNote, /filtering the backlink list/);
   assert.equal((await c.tool("get_backlinks_overview", { projectId: pid, target: "https://example.com/blog/post", scope: "page" })).structuredContent.scope, "exact_url", "legacy 'page' maps to exact_url");
   const bp = (await c.tool("get_backlinks_profile", { projectId: pid, target: "example.com", page: 2, pageSize: 100, sortField: "domainRank", sortOrder: "asc", filters: { linkType: "dofollow", minDomainRank: "100", hideLost: true } })).structuredContent.backlinks;
   assert.deepEqual([bp.page, bp.pageSize, bp.rows.length, bp.totalCount, bp.hasMore], [2, 100, 0, 23, false]);
@@ -235,10 +235,10 @@ test("reports and templates: CRUD, sharing, limits", async () => {
   const r = (await c.tool("save_report", { projectId: pid, title: "Q4", summary: "sum", html: "<html><h1>Hi</h1><script>alert(1)</script></html>", templateId: t.templateId })).structuredContent;
   assert.equal(r.created, true); assert.equal(r.htmlBytes, 49);
   const bad = await c.tool("save_report", { projectId: pid, title: "Truncated", summary: "s", html: "<html><body>cut off" });
-  assert.equal(bad.content[0]!.text, "The HTML has no closing </html>; the model stopped early. On Codex, escape backticks and ${.");
-  assert.match((await c.tool("save_report", { projectId: pid, title: "Q4", summary: "s", html: "<html></html>" })).content[0]!.text, /^A report titled 'Q4' exists \(id [0-9a-f-]{36}\)\. Pass reportId to update it, or change the title\.$/);
-  assert.equal((await c.tool("save_report", { projectId: pid, title: "T".repeat(121), summary: "s", html: "<html></html>" })).content[0]!.text, "Title is 121 characters; the limit is 120. Shorten it and save again.");
-  assert.match((await c.tool("save_report", { projectId: pid, title: "Big", summary: "s", html: "<html>" + "x".repeat(600_000) + "</html>" })).content[0]!.text, /^Report is 601 KB; the limit is 500 KB\./);
+  assert.match(bad.content[0]!.text, /never closes its <html> tag/);
+  assert.match((await c.tool("save_report", { projectId: pid, title: "Q4", summary: "s", html: "<html></html>" })).content[0]!.text, /^A report called "Q4" already exists \(id [0-9a-f-]{36}\)\. Pass reportId to overwrite it, or choose another title\.$/);
+  assert.equal((await c.tool("save_report", { projectId: pid, title: "T".repeat(121), summary: "s", html: "<html></html>" })).content[0]!.text, "The title has 121 characters but at most 120 are allowed. Shorten it and try again.");
+  assert.match((await c.tool("save_report", { projectId: pid, title: "Big", summary: "s", html: "<html>" + "x".repeat(600_000) + "</html>" })).content[0]!.text, /^The report is 601 KB but the ceiling is 500 KB\./);
   assert.match((await c.tool("save_report", { projectId: pid, reportId: "00000000-0000-0000-0000-000000000000", title: "Z", summary: "s", html: "<html></html>" })).content[0]!.text, /^No report 00000000-0000-0000-0000-000000000000 in this project/);
   assert.ok((await c.tool("save_report", { projectId: pid, title: "x", summary: "s", html: "<html>" + "x".repeat(500_000) + "</html>" })).isError);
   assert.ok((await c.tool("save_report", { projectId: pid, title: "x", summary: "s", html: "<html></html>", templateId: "00000000-0000-0000-0000-000000000000" })).isError);

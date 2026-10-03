@@ -111,7 +111,7 @@ test("prompt explorer: one model failing does not hide the others; failures are 
   const out = (await (await ask({ prompt, models: ["chat_gpt", "claude", "gemini"] })).json()) as any;
   assert.deepEqual(out.results.map((r: any) => r.status), ["success", "error", "success"]);
   assert.equal(out.results[1].errorCode, "UPSTREAM_ERROR");
-  assert.equal(out.results[1].message, "This model is temporarily unavailable. Please try again.", "provider detail is not leaked");
+  assert.equal(out.results[1].message, "This model could not be reached just now; try again shortly.", "provider detail is not leaked");
   await ask({ prompt, models: ["claude"] });
   assert.equal(calls(LLM("claude")), 2, "an error is retried next time instead of served from cache");
 });
@@ -121,7 +121,7 @@ test("prompt explorer: an account billing problem is one clear error, not four m
   assert.equal(r.status, 502);
   const e = ((await r.json()) as any).error;
   assert.equal(e.code, "UPSTREAM_BILLING");
-  assert.match(e.message, /billing or balance issue/);
+  assert.match(e.message, /billing or balance problem/);
 });
 
 test("prompt explorer: retries once when a requested web search did not happen, keeps the first answer if the retry also skips it", async () => {
@@ -148,9 +148,9 @@ test("prompt explorer: search country is forwarded only where supported", async 
   assert.equal(out.results[0].status, "success");
   assert.equal(out.results[0].webSearchCountryCode, notClaude);
   assert.equal(bodiesOf(LLM("chat_gpt")).at(-1).web_search_country_iso_code, notClaude);
-  for (const i of [1, 2]) { assert.equal(out.results[i].status, "error"); assert.equal(out.results[i].errorCode, "UNSUPPORTED_COUNTRY"); assert.match(out.results[i].message, /No country preference/); }
+  for (const i of [1, 2]) { assert.equal(out.results[i].status, "error"); assert.equal(out.results[i].errorCode, "UNSUPPORTED_COUNTRY"); assert.match(out.results[i].message, /Any country/); }
   assert.equal(calls(LLM("claude")) + calls(LLM("gemini")), 0, "unsupported combinations are refused before any paid call");
-  assert.match(out.results[2].message, /doesn’t support country selection/);
+  assert.match(out.results[2].message, /no country setting/);
   const noSearch = (await (await ask({ prompt: uniq("c2"), models: ["gemini"], webSearch: false, webSearchCountryCode: "US" })).json()) as any;
   assert.equal(noSearch.results[0].status, "success", "country is ignored when web search is off");
   const dflt = (await (await ask({ prompt: uniq("c3"), models: ["gemini"], webSearchCountryCode: "default" })).json()) as any;
@@ -159,17 +159,17 @@ test("prompt explorer: search country is forwarded only where supported", async 
 
 test("prompt explorer: input validation", async () => {
   const bad: [unknown, RegExp][] = [
-    [{ models: ["gemini"] }, /Enter a prompt/],
-    [{ prompt: "   ", models: ["gemini"] }, /Enter a prompt/],
-    [{ prompt: "x".repeat(501), models: ["gemini"] }, /too long/],
-    [{ prompt: "ok" }, /Choose 1 to 4 models/],
-    [{ prompt: "ok", models: [] }, /Choose 1 to 4 models/],
-    [{ prompt: "ok", models: ["gemini", "claude", "chat_gpt", "perplexity", "gemini", "x"] }, /Choose 1 to 4 models/],
-    [{ prompt: "ok", models: ["llama"] }, /Choose 1 to 4 models/],
+    [{ models: ["gemini"] }, /Write a prompt/],
+    [{ prompt: "   ", models: ["gemini"] }, /Write a prompt/],
+    [{ prompt: "x".repeat(501), models: ["gemini"] }, /(too long|exceeds|above the)/],
+    [{ prompt: "ok" }, /between one and four models/],
+    [{ prompt: "ok", models: [] }, /between one and four models/],
+    [{ prompt: "ok", models: ["gemini", "claude", "chat_gpt", "perplexity", "gemini", "x"] }, /between one and four models/],
+    [{ prompt: "ok", models: ["llama"] }, /between one and four models/],
     [{ prompt: "ok", models: ["gemini"], webSearch: "yes" }, /true or false/],
     [{ prompt: "ok", models: ["gemini"], webSearchCountryCode: "usa" }, /country code/],
-    [{ prompt: "ok", models: ["gemini"], highlightBrand: "b".repeat(251) }, /too long/],
-    [{ prompt: "ok", models: ["gemini"], highlightBrand: 5 }, /must be text/],
+    [{ prompt: "ok", models: ["gemini"], highlightBrand: "b".repeat(251) }, /(too long|exceeds|above the)/],
+    [{ prompt: "ok", models: ["gemini"], highlightBrand: 5 }, /has to be text/],
   ];
   for (const [body, re] of bad) {
     const r = await ask(body);
@@ -329,9 +329,9 @@ test("brand lookup: billing problem is a single error; validation and configurat
   assert.equal(r.status, 502);
   assert.equal(((await r.json()) as any).error.code, "UPSTREAM_BILLING");
   const bad: [unknown, RegExp][] = [
-    [{}, /Enter a brand/], [{ query: "  " }, /Enter a brand/], [{ query: "x".repeat(251) }, /too long/],
-    [{ query: "a", competitors: "b" }, /list of text/], [{ query: "a", competitors: ["a", "b", "c", "d", "e", "f"] }, /at most 5/],
-    [{ query: "a", competitors: ["z".repeat(251)] }, /competitor is too long/], [{ query: "a", locationCode: "US" }, /locationCode/], [{ query: "a", languageCode: "zz-nope" }, /language code/],
+    [{}, /Type a brand/], [{ query: "  " }, /Type a brand/], [{ query: "x".repeat(251) }, /(too long|exceeds|above the)/],
+    [{ query: "a", competitors: "b" }, /list of text/], [{ query: "a", competitors: ["a", "b", "c", "d", "e", "f"] }, /No more than 5/],
+    [{ query: "a", competitors: ["z".repeat(251)] }, /competitor name exceeds/], [{ query: "a", locationCode: "US" }, /locationCode/], [{ query: "a", languageCode: "zz-nope" }, /language code/],
   ];
   const t = dfs.stats().total;
   for (const [body, re] of bad) { const x = await brand(body); assert.equal(x.status, 400, JSON.stringify(body)); assert.match(((await x.json()) as any).error.message, re); }
